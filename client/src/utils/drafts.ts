@@ -16,6 +16,15 @@ export type PendingTextAttachmentDraft = {
 export type FilesDraft = {
   fileIds: string[];
   pendingPastes: Record<string, PendingTextAttachmentDraft>;
+  /** Paste-generated attachment ids, kept after `pendingPastes` is consumed so provenance
+   * survives reloads without holding the (much larger) paste text indefinitely. */
+  pastedTextIds?: string[];
+  /** The browser tab that first wrote the draft. Every draft key is reachable from more than
+   * one tab (the unsaved-chat key by every default composer, a conversation key by every tab
+   * viewing it), so destructive actions read this to leave other tabs' composers alone.
+   * Later rewrites, including another tab restoring the same record, keep this owner rather
+   * than restamping. Undefined on records older than the stamp. */
+  tabId?: string;
 };
 
 type StoredPendingTextAttachmentDraft = {
@@ -32,6 +41,8 @@ type StoredPendingTextAttachmentDraft = {
 type StoredFilesDraft = {
   fileIds: string[];
   pendingPastes: Record<string, StoredPendingTextAttachmentDraft>;
+  pastedTextIds?: string[];
+  tabId?: string;
 };
 
 const newConversationDraftTokens = new Map<number, symbol>();
@@ -62,6 +73,15 @@ export const getNewConversationDraftId = (index = 0): string =>
 export const isNewConversationDraftId = (id?: string | null): boolean =>
   typeof id === 'string' &&
   (id === Constants.NEW_CONVO || id.startsWith(`${Constants.NEW_CONVO}:`));
+
+export const isPendingDraftId = (id?: string | null): boolean =>
+  typeof id === 'string' &&
+  (id === Constants.PENDING_CONVO || id.startsWith(`${Constants.PENDING_CONVO}:`));
+
+/** Keys every tab's default composer reaches, rather than one conversation's own draft. These are
+ * the records a destructive action has to check an owner for. */
+export const isSharedComposerDraftId = (id?: string | null): boolean =>
+  isNewConversationDraftId(id) || isPendingDraftId(id);
 
 export const getConversationDraftId = (index = 0, conversationId?: string | null): string =>
   conversationId == null || conversationId === '' || conversationId === Constants.NEW_CONVO
@@ -376,22 +396,232 @@ export const getFilesDraft = (id: string): FilesDraft => {
     return {
       fileIds: Array.isArray(storedDraft.fileIds) ? storedDraft.fileIds : [],
       pendingPastes,
+      pastedTextIds: Array.isArray(storedDraft.pastedTextIds) ? storedDraft.pastedTextIds : [],
+      tabId: typeof storedDraft.tabId === 'string' ? storedDraft.tabId : undefined,
     };
   } catch {
     return { fileIds: [], pendingPastes: {} };
   }
 };
 
+const TAB_SESSION_STORAGE_KEY = 'librechat-tab-session';
+
+let documentTabId: string | null = null;
+
+/** Identifies this browser tab for the session. `sessionStorage` is per-tab and survives that
+ * tab's reloads, which is exactly the ownership an unsaved-chat draft needs: the draft key is
+ * shared through `localStorage` by every tab's default composer, while the composer that owns
+ * the record stays identifiable.
+ *
+ * One caveat decides the shape below: duplicated and opener-created tabs start with a COPY of
+ * the original's `sessionStorage`, so a stored id on its own proves nothing. Reload of the same
+ * document legitimately keeps it, and so does Back/Forward after the document was evicted from
+ * the back-forward cache (Navigation Timing reports `back_forward`, not `reload`). Every other
+ * entry into a document mints a fresh id, because an inherited one would attribute another
+ * tab's live drafts to this composer. */
+const resolveBrowserTabId = (): string => {
+  try {
+    const stored = sessionStorage.getItem(TAB_SESSION_STORAGE_KEY);
+    if (documentTabId != null && stored === documentTabId) {
+      return documentTabId;
+    }
+    const navigationType =
+      typeof performance.getEntriesByType === 'function'
+        ? performance.getEntriesByType('navigation')[0]?.type
+        : undefined;
+    if (
+      stored != null &&
+      stored !== '' &&
+      (navigationType === 'reload' || navigationType === 'back_forward')
+    ) {
+      documentTabId = stored;
+      return stored;
+    }
+    documentTabId = crypto.randomUUID();
+    sessionStorage.setItem(TAB_SESSION_STORAGE_KEY, documentTabId);
+    return documentTabId;
+  } catch {
+    // Privacy-blocked storage cannot attribute drafts to a tab; share one identity instead.
+    return '';
+  }
+};
+
+type LiveTabs = Record<string, number>;
+
+const TAB_LIVENESS_STORAGE_KEY = 'librechat-live-tabs';
+const TAB_HEARTBEAT_MS = 10_000;
+/** A hidden tab has its timers throttled to roughly one tick a minute, so the gap between two
+ * heartbeats of a perfectly healthy background composer is far wider than the interval asks for.
+ * The window has to clear that comfortably, or a backgrounded tab would have its own draft taken
+ * away from it. Losing a closed tab's claim a couple of minutes late costs nothing; taking a live
+ * tab's draft costs the text it was still writing. */
+const TAB_LIVENESS_WINDOW_MS = 150_000;
+
+const readLiveTabs = (): LiveTabs => {
+  try {
+    const raw = localStorage.getItem(TAB_LIVENESS_STORAGE_KEY);
+    if (raw == null || raw === '') {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as LiveTabs | null;
+    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+};
+
+/** Marks this tab as present and drops the tabs that stopped reporting, so the registry cannot
+ * grow a permanent entry for every tab the browser has ever opened. */
+const recordTabHeartbeat = (tabId: string): void => {
+  const now = Date.now();
+  const live: LiveTabs = { [tabId]: now };
+  for (const [id, seenAt] of Object.entries(readLiveTabs())) {
+    if (id !== tabId && typeof seenAt === 'number' && now - seenAt <= TAB_LIVENESS_WINDOW_MS) {
+      live[id] = seenAt;
+    }
+  }
+  try {
+    localStorage.setItem(TAB_LIVENESS_STORAGE_KEY, JSON.stringify(live));
+  } catch {
+    // A tab that cannot record a heartbeat reads as gone, which only ever releases its claims.
+  }
+};
+
+const forgetTab = (tabId: string): void => {
+  const live = readLiveTabs();
+  if (!(tabId in live)) {
+    return;
+  }
+  delete live[tabId];
+  try {
+    localStorage.setItem(TAB_LIVENESS_STORAGE_KEY, JSON.stringify(live));
+  } catch {
+    // Nothing to do: the entry expires on its own once the window passes.
+  }
+};
+
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let heartbeatTabId: string | null = null;
+
+const startTabHeartbeat = (tabId: string): void => {
+  if (heartbeatTabId === tabId || typeof window === 'undefined') {
+    return;
+  }
+  heartbeatTabId = tabId;
+  recordTabHeartbeat(tabId);
+  if (heartbeatTimer != null) {
+    return;
+  }
+  const beat = (): void => {
+    if (heartbeatTabId != null) {
+      recordTabHeartbeat(heartbeatTabId);
+    }
+  };
+  heartbeatTimer = setInterval(beat, TAB_HEARTBEAT_MS);
+  /** `pagehide` is the last event a closing tab is reliably given, so the claim is handed back
+   * at once instead of waiting out the window. A tab restored from the back-forward cache fires
+   * `pageshow` and takes it straight back. */
+  window.addEventListener('pagehide', () => {
+    if (heartbeatTabId != null) {
+      forgetTab(heartbeatTabId);
+    }
+  });
+  window.addEventListener('pageshow', beat);
+};
+
+export const getBrowserTabId = (): string => {
+  const tabId = resolveBrowserTabId();
+  if (tabId !== '') {
+    startTabHeartbeat(tabId);
+  }
+  return tabId;
+};
+
+/** Whether the tab a claim names is still around to act on it. A closed tab's `sessionStorage`
+ * goes with it, so its id can never be presented again: without a liveness view its drafts would
+ * stay stamped to an owner that no longer exists, and no tab could restore, update, or clean them
+ * up again. */
+export const isTabLive = (tabId?: string | null): boolean => {
+  if (tabId == null || tabId === '') {
+    return false;
+  }
+  if (tabId === documentTabId) {
+    return true;
+  }
+  const seenAt = readLiveTabs()[tabId];
+  return typeof seenAt === 'number' && Date.now() - seenAt <= TAB_LIVENESS_WINDOW_MS;
+};
+
+/** Destructive readers skip a record another tab still owns. Untagged legacy drafts are treated
+ * as owned so pre-stamp recovery still deletes and clears, and so is a record whose owning tab
+ * has since gone away, which is the only way its draft becomes reachable again. */
+export const isFilesDraftOwnedByThisTab = (draft: FilesDraft): boolean =>
+  draft.tabId == null || draft.tabId === getBrowserTabId() || !isTabLive(draft.tabId);
+
+let filesDraftCache: { id: string; raw: string | null; draft: FilesDraft } | null = null;
+
+/** Reads a files draft without re-parsing storage when the record has not changed. Paste text can
+ * dominate the draft's size, and consumers re-read per file-map change, not per write. */
+export const getFilesDraftCached = (id: string): FilesDraft => {
+  const raw = getLocalStorageItem(`${LocalStorageKeys.FILES_DRAFT}${id}`);
+  if (filesDraftCache != null && filesDraftCache.id === id && filesDraftCache.raw === raw) {
+    return filesDraftCache.draft;
+  }
+  const draft = getFilesDraft(id);
+  filesDraftCache = { id, raw, draft };
+  return draft;
+};
+
+/** Adds a paste-generated file id to a draft's persistent provenance record. */
+export const addPastedTextDraftFile = ({ id, fileId }: { id: string; fileId: string }): void => {
+  const draft = getFilesDraft(id);
+  if (draft.pastedTextIds?.includes(fileId) === true) {
+    return;
+  }
+  setFilesDraft(id, {
+    ...draft,
+    pastedTextIds: [...(draft.pastedTextIds ?? []), fileId],
+  });
+};
+
 export const setFilesDraft = (id: string, draft: FilesDraft): void => {
   const key = `${LocalStorageKeys.FILES_DRAFT}${id}`;
   const pendingPasteEntries = Object.entries(draft.pendingPastes);
-  if (draft.fileIds.length === 0 && pendingPasteEntries.length === 0) {
+  /** Stamp only the first writer, and only for as long as that writer is still open. A later
+   * restore or autosave from another live tab must not steal ownership: that stamp is what keeps
+   * Edit / Move back / New Chat from deleting a file the original tab still has attached. Once
+   * the owner is gone the claim is worth nothing, so the tab writing now takes it over rather
+   * than leaving the record stranded under an id that can never come back. */
+  const claimed = draft.tabId ?? getFilesDraft(id).tabId;
+  const tabId = (claimed != null && isTabLive(claimed) ? claimed : getBrowserTabId()) || undefined;
+  filesDraftCache = null;
+  if (
+    draft.fileIds.length === 0 &&
+    pendingPasteEntries.length === 0 &&
+    (draft.pastedTextIds?.length ?? 0) === 0
+  ) {
     removeLocalStorageItem(key);
     return;
   }
 
   if (pendingPasteEntries.length === 0) {
-    setLocalStorageItem(key, JSON.stringify(draft.fileIds));
+    /** Keep the bare array shape when there is nothing to add, so older readers are unaffected. */
+    const bareFileIds = !draft.pastedTextIds?.length && !tabId;
+    setLocalStorageItem(
+      key,
+      JSON.stringify(
+        bareFileIds
+          ? draft.fileIds
+          : {
+              fileIds: draft.fileIds,
+              ...(draft.pastedTextIds?.length ? { pastedTextIds: draft.pastedTextIds } : {}),
+              ...(tabId ? { tabId } : {}),
+            },
+      ),
+    );
     return;
   }
 
@@ -424,7 +654,43 @@ export const setFilesDraft = (id: string, draft: FilesDraft): void => {
 
   setLocalStorageItem(
     key,
-    JSON.stringify({ fileIds: draft.fileIds, pendingPastes } satisfies StoredFilesDraft),
+    JSON.stringify({
+      fileIds: draft.fileIds,
+      pendingPastes,
+      ...(draft.pastedTextIds?.length ? { pastedTextIds: draft.pastedTextIds } : {}),
+      ...(tabId ? { tabId } : {}),
+    } satisfies StoredFilesDraft),
+  );
+};
+
+/** Records which tab a shared composer key belongs to when text is all it holds. The files draft
+ * doubles as the ownership record, but it is only written once there is an attachment, so a typed
+ * but unattached draft read as unowned and another tab's New Chat cleared it. */
+export const claimComposerDraftTab = (id: string): void => {
+  /** Reached from every debounced keystroke, so it reads through the cache rather than
+   * re-parsing the record each time. */
+  const existing = getFilesDraftCached(id);
+  if (existing.tabId != null && isTabLive(existing.tabId)) {
+    return;
+  }
+  const tabId = getBrowserTabId();
+  if (tabId === '' || existing.tabId === tabId) {
+    return;
+  }
+  if (
+    existing.fileIds.length > 0 ||
+    Object.keys(existing.pendingPastes).length > 0 ||
+    (existing.pastedTextIds?.length ?? 0) > 0
+  ) {
+    setFilesDraft(id, { ...existing, tabId });
+    return;
+  }
+  /** Nothing but the claim to store. `setFilesDraft` drops an empty record rather than leaving
+   * a stub behind, which is right for attachments and wrong for this. */
+  filesDraftCache = null;
+  setLocalStorageItem(
+    `${LocalStorageKeys.FILES_DRAFT}${id}`,
+    JSON.stringify({ fileIds: [], tabId }),
   );
 };
 
@@ -494,6 +760,7 @@ export const setPendingTextAttachmentDraft = ({
     Math.max(0, ...Object.values(draft.pendingPastes).map((paste) => paste.sequence ?? 0)) + 1;
   setFilesDraft(id, {
     fileIds: draft.fileIds.includes(fileId) ? draft.fileIds : [...draft.fileIds, fileId],
+    pastedTextIds: draft.pastedTextIds,
     pendingPastes: {
       ...draft.pendingPastes,
       [fileId]: {
@@ -526,6 +793,7 @@ export const removePendingTextAttachmentDraft = ({
     fileIds: removeFile
       ? draft.fileIds.filter((draftFileId) => draftFileId !== fileId)
       : draft.fileIds,
+    pastedTextIds: draft.pastedTextIds,
     pendingPastes,
   });
 };
@@ -544,6 +812,9 @@ export const setDraft = ({
     : value && value.length > 1;
   if (shouldPersist) {
     setLocalStorageItem(`${LocalStorageKeys.TEXT_DRAFT}${id}`, encodeBase64(value ?? ''));
+    if (isSharedComposerDraftId(id)) {
+      claimComposerDraftTab(id);
+    }
     return;
   }
   removeLocalStorageItem(`${LocalStorageKeys.TEXT_DRAFT}${id}`);

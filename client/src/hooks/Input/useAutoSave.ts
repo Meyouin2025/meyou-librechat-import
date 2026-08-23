@@ -13,6 +13,7 @@ import {
   getNewConversationDraftId,
   getPendingDraftId,
   isAskAnswerDraftId,
+  isFilesDraftOwnedByThisTab,
   isNewConversationDraftId,
   migrateFilesDraft,
   migrateTextDraft,
@@ -20,6 +21,7 @@ import {
   setFilesDraft,
 } from '~/utils';
 import { hasInFlightUpload } from '~/hooks/Files/useFileHandling';
+import { markPastedTextFile } from '~/utils/files';
 import { useChatFormContext } from '~/Providers';
 import { useGetFiles } from '~/data-provider';
 import store from '~/store';
@@ -70,13 +72,18 @@ export const useAutoSave = ({
        * the file-cache path runs on every `QueryKeys.files` write (an upload
        * landing, an SSE attachment during a run), where an empty draft means the
        * write has not caught up yet, not that the user has no attachments. */
-      if (filesDraft.fileIds.length === 0 || fileList == null) {
+      if (
+        !isFilesDraftOwnedByThisTab(filesDraft) ||
+        filesDraft.fileIds.length === 0 ||
+        fileList == null
+      ) {
         return [];
       }
 
       const activeFileIds = new Set(filesRef.current.keys());
       const fileIdsToKeep: string[] = [];
       const pendingPastes = { ...filesDraft.pendingPastes };
+      const pastedTextIds = [...(filesDraft.pastedTextIds ?? [])];
       const pastesToRecover: PendingTextAttachmentDraft[] = [];
 
       // Retrieve files stored in localStorage from files in fileList and set them to `setFiles`
@@ -93,6 +100,14 @@ export const useAutoSave = ({
 
         if (fileToRecover) {
           fileIdsToKeep.push(fileId);
+          if (pendingPastes[fileId] != null && !pastedTextIds.includes(fileId)) {
+            /** Consuming the paste record here, so its id moves to the persistent provenance
+             * list: the text is no longer kept, but the chip must stay recognizable as a paste. */
+            pastedTextIds.push(fileId);
+          }
+          if (pastedTextIds.includes(fileId)) {
+            markPastedTextFile(fileToRecover.file_id);
+          }
           delete pendingPastes[fileId];
           setFiles((currentFiles) => {
             const updatedFiles = new Map(currentFiles);
@@ -127,7 +142,12 @@ export const useAutoSave = ({
         fileIdsToKeep.push(fileId);
       });
 
-      setFilesDraft(id, { fileIds: fileIdsToKeep, pendingPastes });
+      const keptIdentities = new Set([...fileIdsToKeep, ...Object.keys(pendingPastes)]);
+      setFilesDraft(id, {
+        fileIds: fileIdsToKeep,
+        pastedTextIds: pastedTextIds.filter((pastedId) => keptIdentities.has(pastedId)),
+        pendingPastes,
+      });
       return pastesToRecover;
     },
     [fileList, setFiles],
@@ -256,8 +276,10 @@ export const useAutoSave = ({
         saveText(currentConversationId);
       }
 
-      const pendingPastes = restoreFiles(filesDraftId);
-      restoreText(conversationId, pendingPastes);
+      if (isFilesDraftOwnedByThisTab(getFilesDraft(filesDraftId))) {
+        const pendingPastes = restoreFiles(filesDraftId);
+        restoreText(conversationId, pendingPastes);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -309,14 +331,28 @@ export const useAutoSave = ({
     }
 
     const existingDraft = getFilesDraft(conversationId);
+    if (!isFilesDraftOwnedByThisTab(existingDraft)) {
+      return;
+    }
     const pendingFileIds = Object.keys(existingDraft.pendingPastes);
     const draftFileIds = [
       ...fileIds,
       ...pendingFileIds.filter((fileId) => !fileIds.includes(fileId)),
     ];
+    const liveIds = new Set(draftFileIds);
+    files.forEach((file, key) => {
+      liveIds.add(key);
+      if (file.file_id != null) {
+        liveIds.add(file.file_id);
+      }
+      if (file.temp_file_id != null && file.temp_file_id !== '') {
+        liveIds.add(file.temp_file_id);
+      }
+    });
     setFilesDraft(conversationId, {
       fileIds: draftFileIds,
+      pastedTextIds: (existingDraft.pastedTextIds ?? []).filter((id) => liveIds.has(id)),
       pendingPastes: existingDraft.pendingPastes,
     });
-  }, [conversationId, saveDrafts, currentConversationId, fileIds]);
+  }, [conversationId, saveDrafts, currentConversationId, fileIds, files]);
 };

@@ -21,7 +21,14 @@ import {
   isDocumentSupportedProvider,
   fileConfig as defaultFileConfig,
 } from 'librechat-data-provider';
-import type { TFile, EndpointFileConfig, FileConfig, RegexLike } from 'librechat-data-provider';
+import type {
+  TFile,
+  DeleteFilesResponse,
+  EndpointFileConfig,
+  FileConfig,
+  FileSources,
+  RegexLike,
+} from 'librechat-data-provider';
 import type { QueryClient } from '@tanstack/react-query';
 import type { ExtendedFile } from '~/common';
 
@@ -494,6 +501,193 @@ export const PASTE_AS_FILE_MIN_LENGTH = 2500;
 
 export const PASTED_TEXT_FILENAME = 'pasted-text.txt';
 
+/** Matches every name `nextPastedTextFilename` can produce, and nothing else: the counter
+ * starts at the bare name and jumps to 2, so `-0`, `-1`, and zero-padded variants are never
+ * generated and must not read as generated. The alternation is "any integer of 2 or more":
+ * a single digit 2-9, or two or more digits. */
+const PASTED_TEXT_FILENAME_PATTERN = /^pasted-text(-([2-9]|[1-9]\d+))?\.txt$/;
+
+/**
+ * Whether a filename is one `nextPastedTextFilename` can produce. Name alone cannot prove an
+ * attachment is a paste, though: a user can deliberately upload a file with one of these names.
+ * Provenance comes from the paste registry and the files draft, not the name.
+ */
+export const isPastedTextFilename = (filename?: string | null): boolean =>
+  filename != null && PASTED_TEXT_FILENAME_PATTERN.test(filename);
+
+const pastedTextFileIds = new Set<string>();
+
+/** Records that a file id belongs to a paste the composer generated, so its chip can offer the
+ * paste affordances. The registry lives for the session; the files draft persists the ids. */
+export const markPastedTextFile = (fileId: string): void => {
+  pastedTextFileIds.add(fileId);
+};
+
+export const isPastedTextFileMarked = (fileId?: string | null): boolean =>
+  fileId != null && pastedTextFileIds.has(fileId);
+
+/** A file deletion whose request failed, kept with everything needed to retry it: the chip it
+ * came from is already gone, so the payload cannot be rebuilt from the composer. */
+export type PendingFileDeletion = {
+  file_id: string;
+  embedded: boolean;
+  filepath: string;
+  source: FileSources;
+};
+
+/** A resolved delete request is not proof the records are gone: the route answers 200 with
+ * `failedFileIds` when a storage delete fails, so every caller that cleans up after itself has to
+ * read the result rather than only catching a rejection. */
+export const failedFileIdsFrom = (result: DeleteFilesResponse | void): string[] =>
+  result != null && Array.isArray(result.failedFileIds) ? result.failedFileIds : [];
+
+const RETAINED_DELETION_STORAGE_KEY = 'librechat-retained-file-deletions';
+const RETAINED_RETRY_BASE_DELAY_MS = 5_000;
+const RETAINED_RETRY_MAX_DELAY_MS = 60_000;
+
+const readStoredRetainedDeletions = (): PendingFileDeletion[] => {
+  try {
+    const raw = sessionStorage.getItem(RETAINED_DELETION_STORAGE_KEY);
+    if (raw == null || raw === '') {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as PendingFileDeletion[] | null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+/** Survives a reload: the chip these came from is gone, so once the tab forgets the payload the
+ * upload on the server has no reference left at all. */
+const retainedFileDeletions = new Map<string, PendingFileDeletion>(
+  readStoredRetainedDeletions().map((record) => [record.file_id, record]),
+);
+const retainedFileDeletionListeners = new Set<() => void>();
+
+const persistRetainedFileDeletions = (): void => {
+  try {
+    if (retainedFileDeletions.size === 0) {
+      sessionStorage.removeItem(RETAINED_DELETION_STORAGE_KEY);
+      return;
+    }
+    sessionStorage.setItem(
+      RETAINED_DELETION_STORAGE_KEY,
+      JSON.stringify(Array.from(retainedFileDeletions.values())),
+    );
+  } catch {
+    // The in-memory copy still drives this session's retries.
+  }
+};
+
+const notifyRetainedFileDeletions = (): void => {
+  retainedFileDeletionListeners.forEach((listener) => listener());
+};
+
+let retainedRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let retainedRetryDelayMs = RETAINED_RETRY_BASE_DELAY_MS;
+let onlineRetryBound = false;
+
+const bindOnlineRetainedRetry = (): void => {
+  if (onlineRetryBound || typeof window === 'undefined') {
+    return;
+  }
+  onlineRetryBound = true;
+  window.addEventListener('online', () => {
+    retainedRetryDelayMs = RETAINED_RETRY_BASE_DELAY_MS;
+    notifyRetainedFileDeletions();
+  });
+};
+
+/** A retry that fails again changes nothing the cleanup effect depends on, and the files query
+ * does not refetch on reconnect, so without an explicit wake-up the payload would sit untouched
+ * until some unrelated cache update happened to arrive. Backs off to a slow poll rather than
+ * giving up, because giving up is what orphans the upload. */
+export const scheduleRetainedFileDeletionRetry = (): void => {
+  if (retainedRetryTimer != null) {
+    return;
+  }
+  bindOnlineRetainedRetry();
+  retainedRetryTimer = setTimeout(() => {
+    retainedRetryTimer = null;
+    retainedRetryDelayMs = Math.min(retainedRetryDelayMs * 2, RETAINED_RETRY_MAX_DELAY_MS);
+    notifyRetainedFileDeletions();
+  }, retainedRetryDelayMs);
+};
+
+export const retainFileDeletion = (record: PendingFileDeletion): void => {
+  retainedFileDeletions.set(record.file_id, record);
+  persistRetainedFileDeletions();
+  retainedRetryDelayMs = RETAINED_RETRY_BASE_DELAY_MS;
+  notifyRetainedFileDeletions();
+};
+
+export const clearRetainedFileDeletion = (fileId: string): void => {
+  if (!retainedFileDeletions.delete(fileId)) {
+    return;
+  }
+  persistRetainedFileDeletions();
+  retainedRetryDelayMs = RETAINED_RETRY_BASE_DELAY_MS;
+};
+
+/** The deletions waiting for a retry; ownership stays with the store until one succeeds. */
+export const takeRetainedFileDeletions = (): PendingFileDeletion[] =>
+  Array.from(retainedFileDeletions.values());
+
+/** Subscribe to a retained deletion being recorded so a retry effect can run without waiting
+ * for an unrelated files-cache update. */
+export const subscribeRetainedFileDeletions = (listener: () => void): (() => void) => {
+  retainedFileDeletionListeners.add(listener);
+  return () => {
+    retainedFileDeletionListeners.delete(listener);
+  };
+};
+
+const PENDING_DISCARD_STORAGE_KEY = 'librechat-pending-file-discards';
+
+type PendingDiscardStore = Record<string, string[]>;
+
+const readPendingDiscardStore = (): PendingDiscardStore => {
+  try {
+    const raw = sessionStorage.getItem(PENDING_DISCARD_STORAGE_KEY);
+    if (raw == null || raw === '') {
+      return {};
+    }
+    const parsed: unknown = JSON.parse(raw);
+    return parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as PendingDiscardStore)
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+/** Draft uploads whose records were not yet resolvable when New Chat discarded them. Stored
+ * per composer index so a reload or remount can still delete them once the files cache
+ * exposes the record. */
+export const loadPendingDiscardIds = (index = 0): string[] => {
+  const stored = readPendingDiscardStore()[String(index)];
+  return Array.isArray(stored) ? stored.filter((id) => typeof id === 'string') : [];
+};
+
+export const storePendingDiscardIds = (index: number, ids: string[]): void => {
+  try {
+    const store = readPendingDiscardStore();
+    if (ids.length === 0) {
+      delete store[String(index)];
+    } else {
+      store[String(index)] = ids;
+    }
+    if (Object.keys(store).length === 0) {
+      sessionStorage.removeItem(PENDING_DISCARD_STORAGE_KEY);
+      return;
+    }
+    sessionStorage.setItem(PENDING_DISCARD_STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    // Privacy-blocked storage cannot persist deferred discards across reloads.
+  }
+};
+
 export type PasteAsFileContext = {
   /** The user's `pasteLongTextAsFile` preference. */
   enabled: boolean;
@@ -511,7 +705,7 @@ export type PasteAsFileContext = {
  * alone for pastes and reject a second, different paste that merely matched the first one's
  * length. Numbering keeps every paste attachable while staying readable in the UI.
  */
-const nextPastedTextFilename = (taken: Set<string>): string => {
+export const nextPastedTextFilename = (taken: Set<string>): string => {
   let candidate = PASTED_TEXT_FILENAME;
   let suffix = 1;
   while (taken.has(candidate)) {
