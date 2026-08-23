@@ -1,13 +1,13 @@
 /* Meyou Studios visual theme — cosmetic overrides only. */
 :root {
-  --meyou-bg: 244 247 252;
+  --meyou-bg: 238 242 255;
   --meyou-panel: 255 255 255;
-  --meyou-panel-soft: 238 243 250;
-  --meyou-accent: 72 94 255;
-  --meyou-accent-hover: 54 73 220;
-  --meyou-text: 24 31 48;
-  --meyou-muted: 102 113 136;
-  --meyou-border: 213 221 235;
+  --meyou-panel-soft: 231 236 255;
+  --meyou-accent: 99 79 255;
+  --meyou-accent-hover: 76 57 230;
+  --meyou-text: 23 27 45;
+  --meyou-muted: 94 103 128;
+  --meyou-border: 201 209 236;
 
   --accent-primary: var(--meyou-accent);
   --accent-primary-hover: var(--meyou-accent-hover);
@@ -24,19 +24,17 @@
   --text-secondary: var(--meyou-muted);
   --border-light: var(--meyou-border);
   --border-medium: var(--meyou-border);
-  --theme-surface-radius: 1.15rem;
-  --theme-large-surface-radius: 1.6rem;
 }
 
 .dark {
-  --meyou-bg: 7 10 18;
-  --meyou-panel: 13 18 30;
-  --meyou-panel-soft: 19 26 42;
-  --meyou-accent: 121 111 255;
-  --meyou-accent-hover: 145 137 255;
-  --meyou-text: 239 243 255;
-  --meyou-muted: 158 170 197;
-  --meyou-border: 42 53 76;
+  --meyou-bg: 5 8 17;
+  --meyou-panel: 11 16 29;
+  --meyou-panel-soft: 19 27 47;
+  --meyou-accent: 128 108 255;
+  --meyou-accent-hover: 151 136 255;
+  --meyou-text: 241 244 255;
+  --meyou-muted: 158 170 201;
+  --meyou-border: 49 60 92;
 
   --presentation: var(--meyou-bg);
   --accent-primary: var(--meyou-accent);
@@ -57,19 +55,19 @@
   --surface-tertiary-alt: var(--meyou-panel-soft);
   --surface-dialog: var(--meyou-panel);
   --surface-chat: var(--meyou-panel);
-  --surface-active: 34 43 67;
-  --surface-active-alt: 37 47 73;
-  --surface-hover: 29 38 60;
-  --surface-hover-alt: 34 44 67;
-  --surface-composer-hover: 34 44 67;
+  --surface-active: 40 46 78;
+  --surface-active-alt: 44 52 86;
+  --surface-hover: 28 36 61;
+  --surface-hover-alt: 35 44 73;
+  --surface-composer-hover: 35 44 73;
   --text-primary: var(--meyou-text);
   --text-secondary: var(--meyou-muted);
-  --text-secondary-alt: 132 145 174;
-  --text-tertiary: 126 140 169;
+  --text-secondary-alt: 134 147 179;
+  --text-tertiary: 126 140 172;
   --border-light: var(--meyou-border);
   --border-medium: var(--meyou-border);
-  --border-medium-alt: 52 64 90;
-  --border-heavy: 67 80 110;
+  --border-medium-alt: 58 69 102;
+  --border-heavy: 73 85 121;
   --ring-primary: var(--meyou-accent);
 }
 
@@ -81,29 +79,61 @@ body,
 
 body {
   background:
-    radial-gradient(circle at 20% 0%, rgb(var(--meyou-accent) / 0.12), transparent 34rem),
+    radial-gradient(circle at 15% -10%, rgb(var(--meyou-accent) / 0.23), transparent 34rem),
+    radial-gradient(circle at 88% 8%, rgb(38 120 255 / 0.12), transparent 30rem),
     rgb(var(--meyou-bg));
 }
 
 .dark body {
   background:
-    radial-gradient(circle at 18% -8%, rgb(var(--meyou-accent) / 0.2), transparent 36rem),
-    radial-gradient(circle at 90% 12%, rgb(44 126 255 / 0.08), transparent 30rem),
+    radial-gradient(circle at 15% -10%, rgb(var(--meyou-accent) / 0.28), transparent 36rem),
+    radial-gradient(circle at 88% 8%, rgb(38 120 255 / 0.12), transparent 32rem),
     rgb(var(--meyou-bg));
 }
 
-/* Give primary panes a softer Meyou Studios glass-card feel without changing layout. */
+/* An unmistakable Meyou Studios badge so the branded build is obvious. */
+.meyou-studios body::before {
+  content: 'MEYOU STUDIOS  •  MEYOU V2';
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  padding: 7px 13px;
+  border: 1px solid rgb(var(--meyou-accent) / 0.38);
+  border-radius: 999px;
+  background: rgb(var(--meyou-panel) / 0.84);
+  color: rgb(var(--meyou-text));
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.16);
+  backdrop-filter: blur(18px);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
 .dark [class*='bg-surface-primary'],
 .dark [class*='bg-surface-secondary'],
 .dark [class*='bg-header-primary'] {
   backdrop-filter: blur(14px);
 }
 
-/* Make focused controls and composer accents read as Meyou rather than stock LibreChat. */
+button,
+textarea,
+input,
+[role='button'] {
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+textarea:focus,
+input:focus {
+  box-shadow: 0 0 0 2px rgb(var(--meyou-accent) / 0.22);
+}
+
 :focus-visible {
   outline-color: rgb(var(--meyou-accent) / 0.75);
 }
 
 ::selection {
-  background: rgb(var(--meyou-accent) / 0.28);
+  background: rgb(var(--meyou-accent) / 0.32);
 }
