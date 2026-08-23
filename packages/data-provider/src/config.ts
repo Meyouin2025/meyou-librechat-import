@@ -1775,6 +1775,9 @@ export type TStartupConfig = {
         {
           title: string;
           description: string;
+          sensitive?: boolean;
+          /** Override rather than requirement - tools stay available while it is unset. */
+          optional?: boolean;
         }
       >;
       chatMenu?: boolean;
