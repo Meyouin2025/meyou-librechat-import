@@ -10,6 +10,9 @@ import { ApiErrorBoundaryProvider } from './hooks/ApiErrorBoundaryContext';
 import 'katex/dist/katex.min.css';
 import 'katex/dist/contrib/copy-tex.js';
 
+document.title = 'Meyou Studios';
+document.documentElement.classList.add('meyou-studios');
+
 window.addEventListener('vite:preloadError', (event) => {
   if (window.__lcRecoverStaleAssets?.()) {
     event.preventDefault();
