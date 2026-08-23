@@ -160,15 +160,9 @@ const canAccessAgentFromBody = (options) => {
       const { endpoint, agent_id } = req.body;
       let agentId = agent_id;
 
-      if (!isAgentsEndpoint(endpoint)) {
+      if (!isAgentsEndpoint(endpoint) || !agentId) {
         agentId = Constants.EPHEMERAL_AGENT_ID;
-      }
-
-      if (!agentId) {
-        return res.status(400).json({
-          error: 'Bad Request',
-          message: 'agent_id is required in request body',
-        });
+        req.body.agent_id = agentId;
       }
 
       const afterPrimaryCheck = () => addedConvoMiddleware(req, res, next);
