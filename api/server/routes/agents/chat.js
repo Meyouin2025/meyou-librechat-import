@@ -7,7 +7,13 @@ const {
   applyResumeContext,
   GenerationJobManager,
 } = require('@librechat/api');
-const { PermissionTypes, Permissions, PermissionBits } = require('librechat-data-provider');
+const {
+  Constants,
+  PermissionTypes,
+  Permissions,
+  PermissionBits,
+  isAgentsEndpoint,
+} = require('librechat-data-provider');
 const {
   moderateText,
   // validateModel,
@@ -32,6 +38,34 @@ const checkAgentAccess = generateCheckAccess({
 const checkAgentResourceAccess = canAccessAgentFromBody({
   requiredPermission: PermissionBits.VIEW,
 });
+
+/**
+ * Normalize the endpoint and agent id before any access middleware reads the request.
+ * The browser can POST to /api/agents/chat/:endpoint without duplicating `endpoint`
+ * or `agent_id` in the JSON body. Treat a missing agent id as an ephemeral agent so
+ * a new conversation does not fail with a 400 before the endpoint can initialize it.
+ */
+const normalizeAgentRequest = (req, _res, next) => {
+  if (!req.body || typeof req.body !== 'object') {
+    req.body = {};
+  }
+
+  const routeEndpoint = req.params?.endpoint;
+  const endpoint = req.body.endpoint || routeEndpoint;
+  if (endpoint) {
+    req.body.endpoint = endpoint;
+  }
+
+  if (!req.body.agent_id) {
+    req.body.agent_id = Constants.EPHEMERAL_AGENT_ID;
+  }
+
+  if (!isAgentsEndpoint(endpoint) && routeEndpoint) {
+    req.body.endpoint = routeEndpoint;
+  }
+
+  next();
+};
 
 /**
  * Replay the paused turn's graph-determining config onto a resume request BEFORE the
@@ -71,6 +105,7 @@ const restoreResumeContext = async (req, res, next) => {
   next();
 };
 
+router.use(normalizeAgentRequest);
 router.use(restoreResumeContext);
 router.use(createMessageFilterPii({ getConfig: (req) => req.config?.messageFilter?.pii }));
 router.use(moderateText);
