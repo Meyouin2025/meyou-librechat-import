@@ -1,0 +1,109 @@
+/* Meyou Studios visual theme — cosmetic overrides only. */
+:root {
+  --meyou-bg: 244 247 252;
+  --meyou-panel: 255 255 255;
+  --meyou-panel-soft: 238 243 250;
+  --meyou-accent: 72 94 255;
+  --meyou-accent-hover: 54 73 220;
+  --meyou-text: 24 31 48;
+  --meyou-muted: 102 113 136;
+  --meyou-border: 213 221 235;
+
+  --accent-primary: var(--meyou-accent);
+  --accent-primary-hover: var(--meyou-accent-hover);
+  --surface-submit: var(--meyou-accent);
+  --surface-submit-hover: var(--meyou-accent-hover);
+  --link: var(--meyou-accent);
+  --link-hover: var(--meyou-accent-hover);
+  --header-primary: var(--meyou-panel);
+  --surface-primary: var(--meyou-panel);
+  --surface-primary-alt: var(--meyou-panel-soft);
+  --surface-secondary: var(--meyou-panel-soft);
+  --surface-chat: var(--meyou-panel);
+  --text-primary: var(--meyou-text);
+  --text-secondary: var(--meyou-muted);
+  --border-light: var(--meyou-border);
+  --border-medium: var(--meyou-border);
+  --theme-surface-radius: 1.15rem;
+  --theme-large-surface-radius: 1.6rem;
+}
+
+.dark {
+  --meyou-bg: 7 10 18;
+  --meyou-panel: 13 18 30;
+  --meyou-panel-soft: 19 26 42;
+  --meyou-accent: 121 111 255;
+  --meyou-accent-hover: 145 137 255;
+  --meyou-text: 239 243 255;
+  --meyou-muted: 158 170 197;
+  --meyou-border: 42 53 76;
+
+  --presentation: var(--meyou-bg);
+  --accent-primary: var(--meyou-accent);
+  --accent-primary-hover: var(--meyou-accent-hover);
+  --surface-submit: var(--meyou-accent);
+  --surface-submit-hover: var(--meyou-accent-hover);
+  --link: var(--meyou-accent);
+  --link-hover: var(--meyou-accent-hover);
+  --header-primary: var(--meyou-panel);
+  --header-hover: var(--meyou-panel-soft);
+  --header-button-hover: var(--meyou-panel-soft);
+  --surface-primary: var(--meyou-bg);
+  --surface-primary-alt: var(--meyou-panel);
+  --surface-primary-contrast: var(--meyou-panel);
+  --surface-secondary: var(--meyou-panel);
+  --surface-secondary-alt: var(--meyou-panel-soft);
+  --surface-tertiary: var(--meyou-panel-soft);
+  --surface-tertiary-alt: var(--meyou-panel-soft);
+  --surface-dialog: var(--meyou-panel);
+  --surface-chat: var(--meyou-panel);
+  --surface-active: 34 43 67;
+  --surface-active-alt: 37 47 73;
+  --surface-hover: 29 38 60;
+  --surface-hover-alt: 34 44 67;
+  --surface-composer-hover: 34 44 67;
+  --text-primary: var(--meyou-text);
+  --text-secondary: var(--meyou-muted);
+  --text-secondary-alt: 132 145 174;
+  --text-tertiary: 126 140 169;
+  --border-light: var(--meyou-border);
+  --border-medium: var(--meyou-border);
+  --border-medium-alt: 52 64 90;
+  --border-heavy: 67 80 110;
+  --ring-primary: var(--meyou-accent);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 0%, rgb(var(--meyou-accent) / 0.12), transparent 34rem),
+    rgb(var(--meyou-bg));
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 18% -8%, rgb(var(--meyou-accent) / 0.2), transparent 36rem),
+    radial-gradient(circle at 90% 12%, rgb(44 126 255 / 0.08), transparent 30rem),
+    rgb(var(--meyou-bg));
+}
+
+/* Give primary panes a softer Meyou Studios glass-card feel without changing layout. */
+.dark [class*='bg-surface-primary'],
+.dark [class*='bg-surface-secondary'],
+.dark [class*='bg-header-primary'] {
+  backdrop-filter: blur(14px);
+}
+
+/* Make focused controls and composer accents read as Meyou rather than stock LibreChat. */
+:focus-visible {
+  outline-color: rgb(var(--meyou-accent) / 0.75);
+}
+
+::selection {
+  background: rgb(var(--meyou-accent) / 0.28);
+}
