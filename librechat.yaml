@@ -1,0 +1,18 @@
+version: 1.3.14
+cache: true
+
+interface:
+  customWelcome: 'Welcome to Meyou Studios'
+
+endpoints:
+  custom:
+    - name: 'Meyou V2'
+      apiKey: 'meyou-internal'
+      baseURL: 'https://meyou-agent-v2.meyoustudio0.workers.dev/v1'
+      models:
+        default:
+          - 'meyou-v2'
+        fetch: false
+      titleConvo: true
+      titleModel: 'meyou-v2'
+      modelDisplayLabel: 'Meyou'
