@@ -8,14 +8,17 @@ const loadAgent = (params) => loadAgentFn(params, { getAgent: db.getAgent, getMC
 
 const buildOptions = (req, endpoint, parsedBody, endpointType) => {
   const { spec, iconURL, agent_id, chatProjectId, ...model_parameters } = parsedBody;
+  const effectiveAgentId =
+    isAgentsEndpoint(endpoint) && agent_id ? agent_id : Constants.EPHEMERAL_AGENT_ID;
+
   const agentPromise = loadAgent({
     req,
     spec,
-    agent_id: isAgentsEndpoint(endpoint) ? agent_id : Constants.EPHEMERAL_AGENT_ID,
+    agent_id: effectiveAgentId,
     endpoint,
     model_parameters,
   }).catch((error) => {
-    logger.error(`[/agents/:${agent_id}] Error retrieving agent during build options step`, error);
+    logger.error(`[/agents/:${effectiveAgentId}] Error retrieving agent during build options step`, error);
     return undefined;
   });
 
@@ -26,7 +29,7 @@ const buildOptions = (req, endpoint, parsedBody, endpointType) => {
     spec,
     iconURL,
     endpoint,
-    agent_id,
+    agent_id: effectiveAgentId,
     endpointType,
     chatProjectId,
     model_parameters,
