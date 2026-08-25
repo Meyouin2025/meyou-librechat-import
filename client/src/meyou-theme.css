@@ -276,3 +276,47 @@ body,
   color: #ffb76b !important;
   opacity: 1;
 }
+
+
+/* Exact LibreChat unified sidebar surfaces: icon strip, history panel, and mobile drawer. */
+.meyou-studios [class*='bg-surface-primary-alt'],
+.meyou-studios #chat-history-nav,
+.meyou-studios #mobile-nav {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Maximum login readability: dark Meyou lettering on light frosted fields. */
+.meyou-studios main:has(input[type='password']) h1 {
+  color: #ff7a1a !important;
+  -webkit-text-stroke: 0.35px rgb(40 16 4 / 0.85);
+  text-shadow:
+    0 2px 2px rgb(0 0 0 / 0.95),
+    0 0 12px rgb(255 225 190 / 0.82) !important;
+}
+
+.meyou-studios main:has(input[type='password']) input {
+  color: #2b1407 !important;
+  caret-color: #2b1407 !important;
+  background: rgb(255 239 216 / 0.86) !important;
+  border-color: rgb(255 122 26 / 0.72) !important;
+  font-weight: 650;
+  text-shadow: none !important;
+}
+
+.meyou-studios main:has(input[type='password']) input::placeholder {
+  color: #54270d !important;
+  opacity: 1 !important;
+  font-weight: 650;
+}
+
+.meyou-studios main:has(input[type='password']) label,
+.meyou-studios main:has(input[type='password']) p {
+  color: #ff9a48 !important;
+  font-weight: 650;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.98) !important;
+}
