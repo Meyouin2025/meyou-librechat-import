@@ -1,13 +1,13 @@
 /* Meyou Studios visual theme — cosmetic overrides only. */
 :root {
-  --meyou-bg: 238 242 255;
-  --meyou-panel: 255 255 255;
-  --meyou-panel-soft: 231 236 255;
-  --meyou-accent: 99 79 255;
-  --meyou-accent-hover: 76 57 230;
-  --meyou-text: 23 27 45;
-  --meyou-muted: 94 103 128;
-  --meyou-border: 201 209 236;
+  --meyou-bg: 2 7 15;
+  --meyou-panel: 5 12 22;
+  --meyou-panel-soft: 12 24 39;
+  --meyou-accent: 255 122 26;
+  --meyou-accent-hover: 255 154 74;
+  --meyou-text: 248 250 252;
+  --meyou-muted: 199 210 222;
+  --meyou-border: 99 119 139;
 
   --accent-primary: var(--meyou-accent);
   --accent-primary-hover: var(--meyou-accent-hover);
@@ -30,8 +30,8 @@
   --meyou-bg: 5 8 17;
   --meyou-panel: 11 16 29;
   --meyou-panel-soft: 19 27 47;
-  --meyou-accent: 128 108 255;
-  --meyou-accent-hover: 151 136 255;
+  --meyou-accent: 255 122 26;
+  --meyou-accent-hover: 255 154 74;
   --meyou-text: 241 244 255;
   --meyou-muted: 158 170 201;
   --meyou-border: 49 60 92;
@@ -136,4 +136,94 @@ input:focus {
 
 ::selection {
   background: rgb(var(--meyou-accent) / 0.32);
+}
+
+
+/* Meyou glass background — Front Door 3. */
+html {
+  background: #02070f;
+}
+
+body,
+.dark body {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgb(1 6 14 / 0.18), rgb(1 6 14 / 0.5)),
+    url('/assets/meyou-studios-background.webp') center center / cover fixed no-repeat;
+  color: rgb(var(--meyou-text));
+}
+
+#root,
+.meyou-studios main {
+  background: transparent !important;
+}
+
+/* Float the app surfaces above the studio image. */
+.meyou-studios [class*='bg-surface-primary'],
+.meyou-studios [class*='bg-surface-secondary'],
+.meyou-studios [class*='bg-surface-tertiary'],
+.meyou-studios [class*='bg-header-primary'],
+.meyou-studios [class*='bg-white'] {
+  background-color: rgb(4 12 22 / 0.64) !important;
+  border-color: rgb(255 122 26 / 0.18) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(18px) saturate(138%);
+  -webkit-backdrop-filter: blur(18px) saturate(138%);
+}
+
+/* Login and registration forms become a single floating glass card. */
+.meyou-studios main > form {
+  padding: 1.35rem;
+  border: 1px solid rgb(255 122 26 / 0.34);
+  border-radius: 1.35rem;
+  background: linear-gradient(145deg, rgb(4 12 22 / 0.76), rgb(7 18 31 / 0.58));
+  box-shadow:
+    0 24px 70px rgb(0 0 0 / 0.45),
+    0 0 38px rgb(255 122 26 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+.meyou-studios main > h1,
+.meyou-studios main > p {
+  color: #fff;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.88);
+}
+
+.meyou-studios input,
+.meyou-studios textarea {
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.18);
+  background-color: rgb(2 9 17 / 0.58);
+  backdrop-filter: blur(12px);
+}
+
+.meyou-studios input:focus,
+.meyou-studios textarea:focus {
+  border-color: rgb(255 122 26 / 0.85);
+  box-shadow:
+    0 0 0 2px rgb(255 122 26 / 0.22),
+    0 0 26px rgb(255 122 26 / 0.13);
+}
+
+/* Meyou orange: visible on primary actions without overwhelming the image. */
+.meyou-studios button[type='submit'],
+.meyou-studios [class*='bg-surface-submit'] {
+  background: linear-gradient(135deg, #ff6a00, #ff953f) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 28px rgb(255 106 0 / 0.25);
+}
+
+.meyou-studios a,
+.meyou-studios [class*='text-accent'] {
+  color: #ff9a4a;
+}
+
+.meyou-studios body::before {
+  border-color: rgb(255 122 26 / 0.55);
+  background: rgb(3 11 20 / 0.66);
+  box-shadow:
+    0 10px 35px rgb(0 0 0 / 0.38),
+    0 0 26px rgb(255 122 26 / 0.1);
 }
