@@ -86,6 +86,13 @@
 
         document.addEventListener('DOMContentLoaded', function () {
           applyMeyouBranding();
+
+          new MutationObserver(applyMeyouBranding).observe(document.head, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+
           new MutationObserver(applyMeyouBranding).observe(document.body, {
             childList: true,
             subtree: true,
