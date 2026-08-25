@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <base href="/" />
-    <meta name="theme-color" content="#171717" />
+    <meta name="theme-color" content="#ff6a00" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -25,6 +25,21 @@
         margin: 0;
         padding: 0;
         height: 100%;
+      }
+
+      :root {
+        --meyou-orange: #ff6a00;
+      }
+
+      ::selection {
+        background: rgba(255, 106, 0, 0.28);
+      }
+
+      textarea:focus-visible,
+      input:focus-visible,
+      button:focus-visible,
+      a:focus-visible {
+        outline-color: var(--meyou-orange) !important;
       }
     </style>
     <script>
@@ -53,6 +68,32 @@
         }
       `;
       document.head.appendChild(loadingContainerStyle);
+    </script>
+    <script>
+      (function () {
+        function applyMeyouBranding() {
+          if (document.title !== 'LibreChat') {
+            document.title = 'LibreChat';
+          }
+
+          document.querySelectorAll('textarea[placeholder], input[placeholder]').forEach(function (field) {
+            var placeholder = field.getAttribute('placeholder') || '';
+            if (/message\s+openai/i.test(placeholder)) {
+              field.setAttribute('placeholder', 'Message LibreChat');
+            }
+          });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+          applyMeyouBranding();
+          new MutationObserver(applyMeyouBranding).observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['placeholder'],
+          });
+        });
+      })();
     </script>
     <script>
       (function () {
