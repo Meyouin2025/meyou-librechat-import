@@ -1,0 +1,38 @@
+/* Final Meyou Studios sidebar transparency override.
+   Keep the full navigation/history UI; remove only panel paint so the
+   studio background reads as one continuous scene. */
+.meyou-studios #chat-history-nav,
+.meyou-studios #chat-history-nav > div,
+.meyou-studios #chat-history-nav [class*='bg-surface'],
+.meyou-studios #mobile-nav,
+.meyou-studios #mobile-nav > div,
+.meyou-studios #mobile-nav [class*='bg-surface'],
+.meyou-studios [data-testid='nav'],
+.meyou-studios [data-testid='nav'] > div,
+.meyou-studios [data-testid='nav'] [class*='bg-surface'],
+.meyou-studios aside,
+.meyou-studios aside > div,
+.meyou-studios aside [class*='bg-surface-primary'],
+.meyou-studios aside [class*='bg-surface-primary-alt'],
+.meyou-studios aside [class*='bg-surface-secondary'],
+.meyou-studios aside [class*='bg-surface-tertiary'],
+.meyou-studios aside [class*='bg-header-primary'] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Keep controls readable without rebuilding a dark panel behind them. */
+.meyou-studios #chat-history-nav button:hover,
+.meyou-studios #chat-history-nav a:hover,
+.meyou-studios #mobile-nav button:hover,
+.meyou-studios #mobile-nav a:hover,
+.meyou-studios aside button:hover,
+.meyou-studios aside a:hover {
+  background-color: rgb(10 10 10 / 0.16) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}

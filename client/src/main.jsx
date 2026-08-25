@@ -5,6 +5,7 @@ import App from './App';
 import '@librechat/client/style.css';
 import './style.css';
 import './meyou-theme.css';
+import './meyou-sidebar-transparent.css';
 import './mobile.css';
 import { ApiErrorBoundaryProvider } from './hooks/ApiErrorBoundaryContext';
 import 'katex/dist/katex.min.css';
