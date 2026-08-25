@@ -236,3 +236,43 @@ body,
     0 10px 35px rgb(0 0 0 / 0.38),
     0 0 26px rgb(255 122 26 / 0.1);
 }
+
+
+/* Final Meyou polish: fully clear left navigation. */
+.meyou-studios aside,
+.meyou-studios nav,
+.meyou-studios aside > div,
+.meyou-studios nav > div,
+.meyou-studios aside [class*='bg-surface'],
+.meyou-studios nav [class*='bg-surface'],
+.meyou-studios [data-testid='nav'],
+.meyou-studios [data-testid='nav'] > div {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Warm, high-contrast login lettering instead of white. */
+.meyou-studios main:has(input[type='password']) h1 {
+  color: #ffc27d !important;
+  text-shadow:
+    0 2px 14px rgb(0 0 0 / 0.95),
+    0 0 20px rgb(255 122 26 / 0.24);
+}
+
+.meyou-studios main:has(input[type='password']) p,
+.meyou-studios main:has(input[type='password']) label {
+  color: #ffd3a3 !important;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.95);
+}
+
+.meyou-studios main:has(input[type='password']) input {
+  color: #ffe0bd !important;
+}
+
+.meyou-studios main:has(input[type='password']) input::placeholder {
+  color: #ffb76b !important;
+  opacity: 1;
+}
