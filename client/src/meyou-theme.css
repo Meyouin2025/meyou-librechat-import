@@ -149,7 +149,7 @@ body,
   min-height: 100vh;
   background:
     linear-gradient(180deg, rgb(255 140 60 / 0.02), rgb(0 0 0 / 0.08)),
-    url('/assets/meyou-studios-background.webp') center center / cover fixed no-repeat;
+    url('/assets/meyou-studios-background.webp?v=clean-20260825') center center / cover fixed no-repeat;
   color: rgb(var(--meyou-text));
 }
 
