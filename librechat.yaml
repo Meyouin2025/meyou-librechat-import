@@ -7,7 +7,7 @@ interface:
 endpoints:
   custom:
     - name: 'Meyou V2'
-      apiKey: 'meyou-internal'
+      apiKey: '${MEYOU_BRIDGE_SECRET}'
       baseURL: 'https://meyou-agent-v2.meyoustudio0.workers.dev/v1'
       models:
         default:
