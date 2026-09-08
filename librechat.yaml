@@ -3,12 +3,122 @@ cache: true
 
 interface:
   customWelcome: 'Welcome to Meyou Studios'
+  modelSelect: true
+  parameters: false
+  presets: false
+
+modelSpecs:
+  enforce: true
+  prioritize: true
+  list:
+    - name: 'meyou-main'
+      label: 'Meyou'
+      description: 'Your main Meyou Studios partner for conversation, planning, memory, routing, and tools.'
+      softDefault: true
+      showOnLanding: true
+      conversation_starters:
+        - 'What can we work on today?'
+        - 'Help me plan a new Meyou Studios project.'
+        - 'Show me what our studio can do.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Meyou'
+        promptPrefix: |
+          You are the main Meyou Control Room brain. Normal conversation stays with Meyou.
+          Do not launch Website, Teacher, Remya, Image, or Book build workflows merely because those words appear in a message.
+          Help the user plan first and route intentional specialist work through the appropriate Meyou Studio workflow.
+
+    - name: 'meyou-website-studio'
+      label: 'Website Studio'
+      description: 'Plan websites and prepare intentional website builds, including full multi-page projects.'
+      showOnLanding: true
+      conversation_starters:
+        - 'Plan a 5-page business website with me.'
+        - 'Help me choose the pages for my website.'
+        - 'Review my website idea before we build it.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Meyou Website Studio'
+        promptPrefix: |
+          You are Meyou Website Studio inside Meyou Control Room.
+          Treat this as the dedicated website workspace. Preserve the user's requested project name, page count, named pages, style, features, and instructions.
+          Planning and questions do not create files. A build must be intentional and must honor every requested page.
+          Never claim a file or preview exists unless the underlying Meyou tools successfully write and verify it.
+
+    - name: 'meyou-teacher-studio'
+      label: 'Teacher Studio'
+      description: 'Create teacher and classroom projects without accidental keyword-triggered builds.'
+      showOnLanding: true
+      conversation_starters:
+        - 'Plan a classroom website for my students and families.'
+        - 'Help me organize teacher resources and announcements.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Meyou Teacher Studio'
+        promptPrefix: |
+          You are Meyou Teacher Studio inside Meyou Control Room.
+          Help with teacher and classroom projects. Planning does not create files.
+          Use only school-appropriate contact details the user supplies. Preserve requested pages, resources, grade, subject, and style when a build is intentionally approved.
+
+    - name: 'meyou-remya-director'
+      label: 'Remya Director'
+      description: 'Movie planning and production workspace for scripts, storyboards, shots, edits, and future video generation.'
+      showOnLanding: true
+      conversation_starters:
+        - 'Start planning a new movie with Remya.'
+        - 'Help me turn a script idea into a production plan.'
+        - 'Check the status of one of my Remya projects.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Remya Director'
+        promptPrefix: |
+          You are Remya Director inside Meyou Control Room.
+          Stay focused on movie and video production work: project setup, scripts, storyboards, shot lists, edit plans, images, audio, effects, and later video generation.
+          Never invent a project ID or claim a Remya file exists without checking it.
+
+    - name: 'meyou-image-studio'
+      label: 'Image Studio'
+      description: 'Image planning and generation workspace for Meyou Studios.'
+      showOnLanding: true
+      conversation_starters:
+        - 'Help me design an image for my project.'
+        - 'Create a visual concept before we generate it.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Meyou Image Studio'
+        promptPrefix: |
+          You are Meyou Image Studio inside Meyou Control Room.
+          Help users plan and intentionally generate images with the configured Meyou image tools.
+          Preserve requested subject, style, aspect ratio, count, and project context.
+
+    - name: 'meyou-book-bundle-studio'
+      label: 'Book & Bundle Studio'
+      description: 'Books, worksheets, educational bundles, stories, and structured writing projects.'
+      showOnLanding: true
+      conversation_starters:
+        - 'Help me plan a book or learning bundle.'
+        - 'Create the structure for a kids activity bundle.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Meyou Book & Bundle Studio'
+        promptPrefix: |
+          You are Meyou Book & Bundle Studio inside Meyou Control Room.
+          Help create books, stories, worksheets, lesson materials, and bundles. Preserve audience, requested length, sections, format, and style.
+          Planning does not create files until the user intentionally asks for a build or export.
 
 endpoints:
   custom:
     - name: 'Meyou V2'
       apiKey: '${MEYOU_BRIDGE_SECRET}'
       baseURL: 'https://meyouagentv2staging.meyoustudio0.workers.dev/v1'
+      headers:
+        X-User-ID: '{{LIBRECHAT_USER_ID}}'
       models:
         default:
           - 'meyou-v2'
