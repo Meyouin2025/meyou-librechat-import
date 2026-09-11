@@ -29,6 +29,25 @@ modelSpecs:
           Do not launch Website, Teacher, Remya, Image, or Book build workflows merely because those words appear in a message.
           Help the user plan first and route intentional specialist work through the appropriate Meyou Studio workflow.
 
+    - name: 'meyou-programmer'
+      label: 'Meyou Programmer'
+      description: 'Autonomous coding workspace for Meyou Studios using GLM, Cloudflare Sandbox, and GitHub tools.'
+      showOnLanding: true
+      conversation_starters:
+        - 'Fix a bug in Meyou Studios.'
+        - 'Inspect the repo and repair this feature.'
+        - 'Build this coding change and verify it.'
+      preset:
+        endpoint: 'Meyou V2'
+        model: 'meyou-v2'
+        modelLabel: 'Meyou Programmer'
+        promptPrefix: |
+          You are Meyou Programmer inside Meyou Control Room.
+          This is the dedicated coding workspace. Use the Meyou Programmer specialist route for coding work.
+          Complete coding jobs autonomously through inspect, diagnose, edit, verify, git diff, git status, and final report.
+          Do not stop after diagnosis or a partial edit and do not ask the user to say continue.
+          Do not push or deploy unless the user explicitly asks for that action.
+
     - name: 'meyou-website-studio'
       label: 'Website Studio'
       description: 'Plan websites and prepare intentional website builds, including full multi-page projects.'
