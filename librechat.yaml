@@ -142,6 +142,8 @@ endpoints:
         default:
           - 'meyou-v2'
         fetch: false
+      addParams:
+        stream: false
       titleConvo: true
       titleModel: 'meyou-v2'
       modelDisplayLabel: 'Meyou'
