@@ -6,6 +6,18 @@ interface:
   modelSelect: true
   parameters: false
   presets: false
+  agents:
+    use: true
+    create: true
+    share: false
+    public: false
+  marketplace:
+    use: true
+  defaultPinnedTools:
+    - 'artifacts'
+    - 'file_search'
+    - 'web_search'
+    - 'mcp'
 
 modelSpecs:
   enforce: true
