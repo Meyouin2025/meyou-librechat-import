@@ -131,6 +131,16 @@ modelSpecs:
           Help create books, stories, worksheets, lesson materials, and bundles. Preserve audience, requested length, sections, format, and style.
           Planning does not create files until the user intentionally asks for a build or export.
 
+fileConfig:
+  endpoints:
+    'Meyou V2':
+      disabled: false
+      fileLimit: 3
+      fileSizeLimit: 10
+      totalSizeLimit: 20
+      supportedMimeTypes:
+        - 'image/.*'
+
 endpoints:
   custom:
     - name: 'Meyou V2'
