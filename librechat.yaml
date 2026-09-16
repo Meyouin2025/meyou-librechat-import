@@ -6,6 +6,18 @@ interface:
   modelSelect: true
   parameters: false
   presets: false
+  agents:
+    use: true
+    create: true
+    share: false
+    public: false
+  marketplace:
+    use: true
+  defaultPinnedTools:
+    - 'artifacts'
+    - 'file_search'
+    - 'web_search'
+    - 'mcp'
 
 modelSpecs:
   enforce: true
@@ -132,6 +144,10 @@ modelSpecs:
           Planning does not create files until the user intentionally asks for a build or export.
 
 fileConfig:
+  defaultLLMDeliveryPath:
+    fallback: text
+    overrides:
+      'image/*': provider
   endpoints:
     'Meyou V2':
       disabled: false
@@ -140,8 +156,49 @@ fileConfig:
       totalSizeLimit: 20
       supportedMimeTypes:
         - 'image/.*'
+      defaultLLMDeliveryPath:
+        fallback: text
+        overrides:
+          'image/*': provider
 
 endpoints:
+  agents:
+    disableBuilder: false
+    recursionLimit: 50
+    maxSubagents: 16
+    capabilities:
+      - 'deferred_tools'
+      - 'file_search'
+      - 'web_search'
+      - 'artifacts'
+      - 'subagents'
+      - 'actions'
+      - 'context'
+      - 'skills'
+      - 'memory'
+      - 'ask_user_question'
+      - 'tools'
+      - 'chain'
+      - 'ocr'
+      - 'tool_intents'
+    toolApproval:
+      enabled: true
+      mode: default
+      allow:
+        - 'mcp:meyou-hands:meyou_status'
+        - 'mcp:meyou-hands:tool_echo'
+        - 'mcp:meyou-hands:list_files'
+        - 'mcp:meyou-hands:read_file'
+      ask:
+        - 'mcp:meyou-hands:run_command'
+        - 'mcp:meyou-hands:write_file'
+      reason: 'Meyou wants to run {tool}. Review this action before it runs.'
+    fileSharing:
+      enabled: true
+      allowSiblingSharing: false
+      maxFiles: 50
+      maxPrivateBytes: 134217728
+      ttlMs: 3600000
   custom:
     - name: 'Meyou V2'
       apiKey: '${MEYOU_BRIDGE_SECRET}'
@@ -157,3 +214,13 @@ endpoints:
       titleConvo: true
       titleModel: 'meyou-v2'
       modelDisplayLabel: 'Meyou'
+
+mcpServers:
+  meyou-hands:
+    type: streamable-http
+    url: 'https://meyou-mcp-v2.meyoustudio0.workers.dev/mcp'
+    headers:
+      Authorization: 'Bearer ${MEYOU_MCP_SECRET}'
+      X-User-ID: '{{LIBRECHAT_USER_ID}}'
+    timeout: 60000
+    serverInstructions: true
