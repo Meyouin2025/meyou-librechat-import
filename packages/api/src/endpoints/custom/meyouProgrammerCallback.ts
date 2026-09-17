@@ -68,6 +68,7 @@ export function getMeyouProgrammerCallbackHeaders({
   if (
     typeof streamId !== 'string' ||
     streamId.length === 0 ||
+    typeof generationCreatedAt !== 'number' ||
     !Number.isSafeInteger(generationCreatedAt) ||
     generationCreatedAt < 0
   ) {
