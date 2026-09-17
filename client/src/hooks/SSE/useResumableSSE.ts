@@ -633,8 +633,25 @@ export default function useResumableSSE(
   const setActiveRunId = useSetRecoilState(store.activeRunFamily(runIndex));
 
   const { token, isAuthenticated } = useAuthContext();
+  const latestAuthTokenRef = useRef<string | undefined>(token);
   const { setMessages, getMessages, setConversation, setIsSubmitting, newConversation } =
     chatHelpers;
+
+  useEffect(() => {
+    latestAuthTokenRef.current = token;
+  }, [token]);
+
+  useEffect(() => {
+    const handleTokenUpdate = (event: Event) => {
+      const updatedToken = (event as CustomEvent<string>).detail;
+      if (typeof updatedToken === 'string' && updatedToken.length > 0) {
+        latestAuthTokenRef.current = updatedToken;
+      }
+    };
+
+    window.addEventListener('tokenUpdated', handleTokenUpdate);
+    return () => window.removeEventListener('tokenUpdated', handleTokenUpdate);
+  }, []);
 
   /**
    * Optimistically add a job ID to the active jobs cache.
@@ -1491,7 +1508,7 @@ export default function useResumableSSE(
 
       const sse = new SSE(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${latestAuthTokenRef.current ?? ''}`,
           ...generationProtocolHeaders(),
         },
         method: 'GET',
@@ -2786,13 +2803,25 @@ export default function useResumableSSE(
             if (!newToken) {
               throw new Error('Token refresh failed.');
             }
-            sse.headers = {
-              ...sse.headers,
-              ...generationProtocolHeaders(),
-              Authorization: `Bearer ${newToken}`,
-            };
+            latestAuthTokenRef.current = newToken;
             request.dispatchTokenUpdatedEvent(newToken);
-            sse.stream();
+            reconnectAttemptRef.current = Math.max(reconnectAttemptRef.current, 1);
+            sse.close();
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+            }
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (isCurrentSubscription() && submissionRef.current) {
+                subscribeToStream(
+                  currentStreamId,
+                  submissionRef.current,
+                  true,
+                  generationCreatedAt,
+                  generationProtocolVersion,
+                  lifecycleSignal,
+                );
+              }
+            }, 0);
             return;
           } catch (error) {
             if (!isCurrentSubscription()) {
