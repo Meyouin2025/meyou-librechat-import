@@ -152,13 +152,13 @@ describe('useResumeOnLoad', () => {
     jest.restoreAllMocks();
   });
 
-  it('does not check for resume when a null-conversation submission matches a loaded user message', () => {
+  it('checks backend status when a null-conversation submission matches a loaded user message', () => {
     renderUseResumeOnLoad({
       submission: buildSubmission(null),
       messages: [buildUserMessage(CONVERSATION_ID)],
     });
 
-    expect(mockUseStreamStatus).toHaveBeenCalledWith(CONVERSATION_ID, false);
+    expect(mockUseStreamStatus).toHaveBeenCalledWith(CONVERSATION_ID, true);
   });
 
   it('checks for resume when the active submission belongs to a different conversation', () => {
@@ -179,7 +179,7 @@ describe('useResumeOnLoad', () => {
     expect(mockUseStreamStatus).toHaveBeenCalledWith(CONVERSATION_ID, true);
   });
 
-  it('stops checking for resume after loaded messages prove a null-conversation submission belongs to the route', () => {
+  it('continues checking backend status after loaded messages prove a submission belongs to the route', () => {
     const submission = buildSubmission(null);
     let messages: TMessage[] = [];
     const { rerender } = renderUseResumeOnLoad({
@@ -192,7 +192,89 @@ describe('useResumeOnLoad', () => {
     messages = [buildUserMessage(CONVERSATION_ID)];
     rerender();
 
-    expect(mockUseStreamStatus).toHaveBeenLastCalledWith(CONVERSATION_ID, false);
+    expect(mockUseStreamStatus).toHaveBeenLastCalledWith(CONVERSATION_ID, true);
+  });
+
+  it('clears a stale active submission when backend status is jobless', async () => {
+    const observedSubmissions: Array<TSubmission | null> = [];
+    mockUseStreamStatus.mockReturnValue({
+      isSuccess: true,
+      isFetching: false,
+      data: { active: false, generationProtocolVersion: 2 },
+    });
+
+    renderUseResumeOnLoad({
+      submission: buildSubmission(CONVERSATION_ID),
+      messages: [buildUserMessage(CONVERSATION_ID)],
+      onSubmission: (currentSubmission) => observedSubmissions.push(currentSubmission),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockUseStreamStatus).toHaveBeenCalledWith(CONVERSATION_ID, true);
+    expect(observedSubmissions[observedSubmissions.length - 1]).toBeNull();
+  });
+
+  it('preserves a same-generation active submission when the backend confirms the job', async () => {
+    const submission = {
+      ...buildSubmission(CONVERSATION_ID),
+      resumeStreamId: CONVERSATION_ID,
+      resumeGenerationCreatedAt: 1234,
+    } as TSubmission & { resumeStreamId: string; resumeGenerationCreatedAt: number };
+    const observedSubmissions: Array<TSubmission | null> = [];
+    mockUseStreamStatus.mockReturnValue({
+      isSuccess: true,
+      isFetching: false,
+      data: {
+        active: true,
+        status: 'running',
+        streamId: CONVERSATION_ID,
+        createdAt: 1234,
+        generationProtocolVersion: 2,
+        resumeState: {
+          aggregatedContent: [{ type: 'text', text: 'Still running' }],
+          responseMessageId: RESPONSE_MESSAGE_ID,
+          userMessage: { messageId: USER_MESSAGE_ID },
+        },
+      },
+    });
+
+    renderUseResumeOnLoad({
+      submission,
+      messages: [buildUserMessage(CONVERSATION_ID)],
+      onSubmission: (currentSubmission) => observedSubmissions.push(currentSubmission),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(observedSubmissions[observedSubmissions.length - 1]).toBe(submission);
+  });
+
+  it('clears a local active submission when refresh/status fails to confirm a backend job', async () => {
+    const observedSubmissions: Array<TSubmission | null> = [];
+    mockUseStreamStatus.mockReturnValue({
+      isSuccess: false,
+      isFetching: false,
+      isError: true,
+      error: { response: { status: 403 } },
+    });
+
+    renderUseResumeOnLoad({
+      submission: buildSubmission(CONVERSATION_ID),
+      messages: [buildUserMessage(CONVERSATION_ID)],
+      onSubmission: (currentSubmission) => observedSubmissions.push(currentSubmission),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockUseStreamStatus).toHaveBeenCalledWith(CONVERSATION_ID, true);
+    expect(observedSubmissions[observedSubmissions.length - 1]).toBeNull();
   });
 
   it('does not replace a null-conversation submission when stream status matches its resume state', async () => {

@@ -23,6 +23,7 @@ import { getCustomEndpointConfig } from '~/app/config';
 import { fetchModels } from '~/endpoints/models';
 import { validateEndpointURL } from '~/auth';
 import { tokenConfigCache } from '~/cache';
+import { getMeyouProgrammerCallbackHeaders } from './meyouProgrammerCallback';
 
 const { PROXY } = process.env;
 
@@ -333,9 +334,16 @@ export async function initializeCustom({
     });
     options.endpointTokenConfig = endpointTokenConfig;
   } else {
+    const callbackHeaders = getMeyouProgrammerCallbackHeaders({ req, baseURL });
     const finalClientOptions = {
       modelOptions,
       ...clientOptions,
+      ...(callbackHeaders && {
+        headers: {
+          ...((clientOptions.headers as Record<string, string> | undefined) ?? {}),
+          ...callbackHeaders,
+        },
+      }),
     };
     options = getOpenAIConfig(apiKey, finalClientOptions, endpoint);
     if (options != null) {
