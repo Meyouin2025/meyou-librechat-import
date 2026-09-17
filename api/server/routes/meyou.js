@@ -35,8 +35,12 @@ function activityEvent(payload) {
   const step = Number.isSafeInteger(event.step) && event.step >= 0 ? event.step : Date.now();
   const label = String(event.label || 'Meyou Programmer is working').slice(0, 160);
   const detail = String(event.detail || '').slice(0, 300);
-  const status =
-    event.state === 'error' ? 'failed' : event.state === 'complete' ? 'completed' : 'in_progress';
+  let status = 'in_progress';
+  if (event.state === 'error') {
+    status = 'failed';
+  } else if (event.state === 'complete') {
+    status = 'completed';
+  }
   const id = `meyou-programmer-${step}`;
 
   return {
