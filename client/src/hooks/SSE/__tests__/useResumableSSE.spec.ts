@@ -1319,6 +1319,7 @@ describe('useResumableSSE', () => {
   });
 
   it('preserves the generation protocol header across a 401 token refresh', async () => {
+    jest.useFakeTimers();
     (request.refreshToken as jest.Mock).mockResolvedValueOnce({ token: 'refreshed-token' });
     const submission = buildSubmission();
     const chatHelpers = buildChatHelpers();
@@ -1326,18 +1327,22 @@ describe('useResumableSSE', () => {
     const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
     await flushMicrotasks();
     const sse = getLastSSE();
+    const sseCount = mockSSEInstances.length;
 
     await act(async () => {
       sse._emit('error', { responseCode: 401 });
       await Promise.resolve();
     });
+    await advanceRetryTimer(0);
 
-    expect(sse.headers).toEqual({
+    expect(getLastSSE().headers).toEqual({
       Authorization: 'Bearer refreshed-token',
       'X-LibreChat-Generation-Protocol': '2',
     });
+    expect(getLastSSE()._url).toContain('resume=true');
+    expect(mockSSEInstances).toHaveLength(sseCount + 1);
     expect(request.dispatchTokenUpdatedEvent).toHaveBeenCalledWith('refreshed-token');
-    expect(sse.stream).toHaveBeenCalledTimes(2);
+    expect(sse.stream).toHaveBeenCalledTimes(1);
     unmount();
   });
 
@@ -2503,6 +2508,66 @@ describe('useResumableSSE', () => {
     expect(mockSetRunEnd).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: CONV_ID, outcome: 'completed' }),
     );
+    unmount();
+  });
+
+  it('reconnects a 401 stream with resume=true using the refreshed token', async () => {
+    jest.useFakeTimers();
+    (request.post as jest.Mock).mockResolvedValue({
+      streamId: CONV_ID,
+      status: 'started',
+      generationCreatedAt: 1000,
+      generationProtocolVersion: 2,
+    });
+    (request.refreshToken as jest.Mock).mockResolvedValue({ token: 'fresh-token' });
+
+    const { unmount } = renderHook(() => useResumableSSE(buildSubmission(), buildChatHelpers()));
+    await flushMicrotasks();
+
+    const firstSSE = getLastSSE();
+    const sseCount = mockSSEInstances.length;
+    expect(firstSSE.headers.Authorization).toBe('Bearer test-token');
+
+    await act(async () => {
+      firstSSE._emit('error', { responseCode: 401 });
+      await Promise.resolve();
+    });
+    await advanceRetryTimer(0);
+
+    expect(request.refreshToken).toHaveBeenCalledTimes(1);
+    expect(request.dispatchTokenUpdatedEvent).toHaveBeenCalledWith('fresh-token');
+    expect(firstSSE.close).toHaveBeenCalled();
+    expect(mockSSEInstances).toHaveLength(sseCount + 1);
+    expect(getLastSSE()._url).toContain('resume=true');
+    expect(getLastSSE()._url).toContain('generationCreatedAt=1000');
+    expect(getLastSSE().headers.Authorization).toBe('Bearer fresh-token');
+    unmount();
+  });
+
+  it('uses a tokenUpdated token for later network resume attempts', async () => {
+    jest.useFakeTimers();
+    (request.post as jest.Mock).mockResolvedValue({
+      streamId: CONV_ID,
+      status: 'started',
+      generationCreatedAt: 1000,
+      generationProtocolVersion: 2,
+    });
+
+    const { unmount } = renderHook(() => useResumableSSE(buildSubmission(), buildChatHelpers()));
+    await flushMicrotasks();
+
+    const firstSSE = getLastSSE();
+    const sseCount = mockSSEInstances.length;
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('tokenUpdated', { detail: 'event-token' }));
+      firstSSE._emit('error', { responseCode: 0 });
+      await Promise.resolve();
+    });
+    await advanceRetryTimer(1000);
+
+    expect(mockSSEInstances).toHaveLength(sseCount + 1);
+    expect(getLastSSE()._url).toContain('resume=true');
+    expect(getLastSSE().headers.Authorization).toBe('Bearer event-token');
     unmount();
   });
 
