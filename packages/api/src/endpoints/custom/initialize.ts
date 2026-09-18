@@ -14,6 +14,7 @@ import type {
   EndpointTokenConfig,
   AnthropicModelOptions,
 } from '~/types';
+import { getMeyouProgrammerCallbackHeaders } from './meyouProgrammerCallback';
 import { getLLMConfig as getAnthropicLLMConfig } from '~/endpoints/anthropic/llm';
 import { extractDefaultParams } from '~/endpoints/openai/llm';
 import { isUserProvided, checkUserKeyExpiry } from '~/utils';
@@ -23,7 +24,6 @@ import { getCustomEndpointConfig } from '~/app/config';
 import { fetchModels } from '~/endpoints/models';
 import { validateEndpointURL } from '~/auth';
 import { tokenConfigCache } from '~/cache';
-import { getMeyouProgrammerCallbackHeaders } from './meyouProgrammerCallback';
 
 const { PROXY } = process.env;
 
