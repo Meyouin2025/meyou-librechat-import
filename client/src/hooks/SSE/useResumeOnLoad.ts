@@ -56,6 +56,32 @@ function resumeStateMatchesSubmission(
   return !!responseMessageId && resumeState.responseMessageId === responseMessageId;
 }
 
+function activeStreamStatusMatchesSubmission(
+  streamStatus: StreamStatusResponse | undefined,
+  submission: TSubmission | null,
+  conversationId: string,
+): boolean {
+  if (!streamStatus?.active || !streamStatus.streamId || !submission) {
+    return false;
+  }
+
+  const resumableSubmission = submission as TSubmission & {
+    resumeStreamId?: string;
+    resumeGenerationCreatedAt?: number;
+  };
+  const submissionStreamId =
+    resumableSubmission.resumeStreamId ?? submission.conversation?.conversationId ?? conversationId;
+  if (submissionStreamId !== streamStatus.streamId) {
+    return false;
+  }
+
+  return (
+    streamStatus.createdAt == null ||
+    resumableSubmission.resumeGenerationCreatedAt == null ||
+    streamStatus.createdAt === resumableSubmission.resumeGenerationCreatedAt
+  );
+}
+
 function getResumeBranchTargetMessageId(
   resumeState: Agents.ResumeState,
   messages: TMessage[],
@@ -358,6 +384,22 @@ export default function useResumeOnLoad(
       },
     [],
   );
+  const clearLocalActiveSubmission = useRecoilCallback(
+    ({ reset, set, snapshot }) =>
+      (activeConversationId: string, expectedSubmission: TSubmission | null) => {
+        if (!expectedSubmission) {
+          return;
+        }
+        const current = snapshot.getLoadable(store.submissionByIndex(runIndex)).getValue();
+        if (current !== expectedSubmission) {
+          return;
+        }
+        set(store.submissionByIndex(runIndex), null);
+        reset(store.activeGenerationCreatedAtByConvoId(activeConversationId));
+        set(store.activeGenerationProtocolVersionByConvoId(activeConversationId), 1);
+      },
+    [runIndex],
+  );
 
   // Check for active stream when conversation changes
   const submissionConvoId = currentSubmission?.conversation?.conversationId;
@@ -374,15 +416,17 @@ export default function useResumeOnLoad(
   const shouldCheck =
     resumableEnabled &&
     messagesLoaded && // Wait for messages to load before checking
-    !hasActiveSubmissionForThisConvo && // Allow if no submission or a confirmed stale submission
     !!conversationId &&
     conversationId !== Constants.NEW_CONVO &&
-    processedConvoRef.current !== conversationId; // Don't re-check processed convos
+    // A local active submission is not authoritative; re-check so jobless/error
+    // backend status can clear stale "working" UI after reload/auth failures.
+    (processedConvoRef.current !== conversationId || hasActiveSubmissionForThisConvo);
 
   const {
     data: streamStatus,
     isSuccess,
     isFetching,
+    isError,
   } = useStreamStatus(conversationId, shouldCheck);
 
   useEffect(() => {
@@ -410,15 +454,6 @@ export default function useResumeOnLoad(
       return;
     }
 
-    // Don't resume if we already have an active submission FOR THIS CONVERSATION
-    // A stale submission with undefined/different conversationId should not block us
-    if (hasActiveSubmissionForThisConvo) {
-      console.log('[ResumeOnLoad] Skipping - already have active submission for this conversation');
-      // Mark as processed so we don't try again
-      processedConvoRef.current = conversationId;
-      return;
-    }
-
     // If there's a stale submission for a different conversation, log it but continue
     if (hasStaleSubmissionForDifferentConvo) {
       console.log(
@@ -428,6 +463,19 @@ export default function useResumeOnLoad(
           currentConvoId: conversationId,
         },
       );
+    }
+
+    if (isError) {
+      if (hasActiveSubmissionForThisConvo) {
+        console.log(
+          '[ResumeOnLoad] Clearing active submission because stream status could not confirm it',
+          { currentConvoId: conversationId },
+        );
+        clearLocalActiveSubmission(conversationId, currentSubmission);
+        restoreSteerChips(conversationId, undefined);
+        processedConvoRef.current = conversationId;
+      }
+      return;
     }
 
     // Wait for stream status query to complete (including background refetches
@@ -459,6 +507,22 @@ export default function useResumeOnLoad(
       processedConvoRef.current = null;
     }
 
+    // Don't replace a current same-conversation submission when the backend
+    // confirms that exact generation is still active. This is the disconnected
+    // stream case: keep the local job and let the existing SSE reconnect/resume.
+    if (
+      hasActiveSubmissionForThisConvo &&
+      activeStreamStatusMatchesSubmission(streamStatus, currentSubmission, conversationId)
+    ) {
+      console.log('[ResumeOnLoad] Skipping - active submission confirmed by stream status', {
+        streamId: streamStatus.streamId,
+        currentConvoId: conversationId,
+        generationCreatedAt: streamStatus.createdAt,
+      });
+      processedConvoRef.current = conversationId;
+      return;
+    }
+
     if (
       streamStatus.active &&
       streamStatus.streamId &&
@@ -482,6 +546,9 @@ export default function useResumeOnLoad(
 
     if (!streamStatus.active || !streamStatus.streamId) {
       console.log('[ResumeOnLoad] No active job to resume for:', conversationId);
+      if (hasActiveSubmissionForThisConvo) {
+        clearLocalActiveSubmission(conversationId, currentSubmission);
+      }
       // A terminal drain may have parked acknowledged steers no subscriber
       // received (tab closed / reload racing the final event) — the status
       // claim returns them exactly once; restore as queued follow-up chips.
@@ -591,9 +658,11 @@ export default function useResumeOnLoad(
     currentSubmission,
     isSuccess,
     isFetching,
+    isError,
     streamStatus,
     getMessages,
     setSubmission,
+    clearLocalActiveSubmission,
     restoreResumeBranch,
     restoreSteerChips,
     settleAppliedSteerParts,

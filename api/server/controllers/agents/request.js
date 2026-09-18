@@ -898,6 +898,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     generationProtocolVersion = negotiateExistingGenerationProtocol(req, job);
     jobCreatedAt = job.createdAt; // Capture creation time to detect job replacement
     req._resumableStreamId = streamId;
+    req._resumableGenerationCreatedAt = jobCreatedAt;
     getMCPRequestContext(req, undefined, { cleanupOnResponse: false });
     let recoveredSteerCommitted = false;
     const commitRecoveredSteer = async () => {

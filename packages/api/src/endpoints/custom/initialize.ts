@@ -15,6 +15,7 @@ import type {
   AnthropicModelOptions,
 } from '~/types';
 import { getLLMConfig as getAnthropicLLMConfig } from '~/endpoints/anthropic/llm';
+import { getMeyouProgrammerCallbackHeaders } from './meyouProgrammerCallback';
 import { extractDefaultParams } from '~/endpoints/openai/llm';
 import { isUserProvided, checkUserKeyExpiry } from '~/utils';
 import { getOpenAIConfig } from '~/endpoints/openai/config';
@@ -333,9 +334,16 @@ export async function initializeCustom({
     });
     options.endpointTokenConfig = endpointTokenConfig;
   } else {
+    const callbackHeaders = getMeyouProgrammerCallbackHeaders({ req, baseURL });
     const finalClientOptions = {
       modelOptions,
       ...clientOptions,
+      ...(callbackHeaders && {
+        headers: {
+          ...((clientOptions.headers as Record<string, string> | undefined) ?? {}),
+          ...callbackHeaders,
+        },
+      }),
     };
     options = getOpenAIConfig(apiKey, finalClientOptions, endpoint);
     if (options != null) {
