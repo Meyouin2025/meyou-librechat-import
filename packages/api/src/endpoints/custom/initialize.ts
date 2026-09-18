@@ -14,8 +14,8 @@ import type {
   EndpointTokenConfig,
   AnthropicModelOptions,
 } from '~/types';
-import { getMeyouProgrammerCallbackHeaders } from './meyouProgrammerCallback';
 import { getLLMConfig as getAnthropicLLMConfig } from '~/endpoints/anthropic/llm';
+import { getMeyouProgrammerCallbackHeaders } from './meyouProgrammerCallback';
 import { extractDefaultParams } from '~/endpoints/openai/llm';
 import { isUserProvided, checkUserKeyExpiry } from '~/utils';
 import { getOpenAIConfig } from '~/endpoints/openai/config';
