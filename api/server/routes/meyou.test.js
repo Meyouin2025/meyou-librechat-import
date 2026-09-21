@@ -100,7 +100,15 @@ describe('Meyou programmer callback route', () => {
       .set('Authorization', `Bearer ${token('stream-1', 123)}`)
       .send({
         type: 'activity',
-        event: { step: 3, state: 'working', phase: 'verify', can_continue: false, can_approve: false, label: 'Running tests', detail: 'npm test' },
+        event: {
+          step: 3,
+          state: 'working',
+          phase: 'verify',
+          can_continue: false,
+          can_approve: false,
+          label: 'Running tests',
+          detail: 'npm test',
+        },
       })
       .expect(200);
 

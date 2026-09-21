@@ -7,9 +7,7 @@ const router = Router();
 
 function getCallbackSecret() {
   return (
-    process.env.MEYOU_PROGRAMMER_CALLBACK_SECRET ||
-    process.env.MEYOU_BRIDGE_SECRET ||
-    ''
+    process.env.MEYOU_PROGRAMMER_CALLBACK_SECRET || process.env.MEYOU_BRIDGE_SECRET || ''
   ).trim();
 }
 
@@ -104,15 +102,18 @@ router.post('/programmer/control', async (req, res) => {
 
   const userId = String(req.user?.id || req.user?._id || '').trim();
   try {
-    const response = await fetch('https://meyou-mc-backend.meyoustudio0.workers.dev/api/programmer/control', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${secret}`,
-        ...(userId ? { 'X-User-ID': userId } : {}),
+    const response = await fetch(
+      'https://meyou-mc-backend.meyoustudio0.workers.dev/api/programmer/control',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${secret}`,
+          ...(userId ? { 'X-User-ID': userId } : {}),
+        },
+        body: JSON.stringify({ action }),
       },
-      body: JSON.stringify({ action }),
-    });
+    );
     const payload = await response.json().catch(() => ({}));
     return res.status(response.status).json(payload);
   } catch (error) {
