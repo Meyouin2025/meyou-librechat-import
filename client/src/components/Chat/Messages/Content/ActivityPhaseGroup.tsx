@@ -1,20 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ContentTypes } from 'librechat-data-provider';
-import type { TMessageContentParts } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
 import { ChevronDown, LoaderCircle } from 'lucide-react';
+import { ContentTypes } from 'librechat-data-provider';
+import type { TMessageContentParts } from 'librechat-data-provider';
 import type { CSSProperties, ReactNode } from 'react';
-import {
-  useExpandCollapse,
-  useLazyCollapseBody,
-  scheduleMessageContentLayoutReconcile,
-  EXPAND_TRANSITION,
-} from '~/hooks';
-import useSmoothStreaming from '~/hooks/Messages/useSmoothStreaming';
-import { getActivityLabelText } from '~/utils/activityLabels';
-import { EmptyText } from './Parts';
-import Container from './Container';
-import { cn } from '~/utils';
 
 /** Matches `EXPAND_TRANSITION` so the header, the panel, and the card chrome
  * all resolve on the same curve — three properties animating on two different
@@ -87,7 +76,7 @@ export default function ActivityPhaseGroup({
   }, [isContinuing]);
   const isProgrammerWorking =
     labelPart.status === undefined &&
-    /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(label);
+    /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(\n      label,\n    );
   const smoothStreaming = useSmoothStreaming();
   const [shouldAnimateEntrance] = useState(smoothStreaming && animateEntrance && label.length > 0);
   const foldsIn = shouldAnimateEntrance && hasContent;
