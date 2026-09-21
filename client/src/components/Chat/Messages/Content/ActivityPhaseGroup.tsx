@@ -221,7 +221,7 @@ export default function ActivityPhaseGroup({
           {isContinuing ? 'Continuing…' : 'Continue'}
         </Button>
       )}
-      {continueError && <span className="ml-2 text-xs text-text-warning">{continueError}</span>
+      {continueError && <span className="ml-2 text-xs text-text-warning">{continueError}</span>}
     </div>
   ) : (
     <div
