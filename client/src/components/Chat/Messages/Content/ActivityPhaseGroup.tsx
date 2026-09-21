@@ -233,11 +233,11 @@ export default function ActivityPhaseGroup({
       ref={rootRef}
     >
       <div style={headerStyle}>
-        <div className="overflow-hidden">
+        <div className="flex items-center overflow-hidden">
           <Button
             variant="ghost"
             type="button"
-            className="flex h-auto min-h-10 w-full items-center justify-start gap-2 rounded-lg bg-transparent px-3 py-2 text-left text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring-primary focus-visible:ring-offset-0"
+            className="flex h-auto min-h-10 min-w-0 flex-1 items-center justify-start gap-2 rounded-lg bg-transparent px-3 py-2 text-left text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring-primary focus-visible:ring-offset-0"
             onClick={handleToggle}
             aria-expanded={isExpanded}
             aria-controls={panelId}
@@ -256,21 +256,6 @@ export default function ActivityPhaseGroup({
             >
               {label}
             </span>
-            {canContinueProgrammer && (
-              <Button
-                variant="outline"
-                type="button"
-                disabled={isContinuing}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void handleProgrammerContinue();
-                }}
-                className="ml-2 h-8 shrink-0 px-3"
-              >
-                {isContinuing ? 'Continuing…' : 'Continue'}
-              </Button>
-            )}
-            {continueError && <span className="ml-2 text-xs text-text-warning">{continueError}</span>}
             <ChevronDown
               className={cn(
                 'size-4 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
@@ -279,6 +264,18 @@ export default function ActivityPhaseGroup({
               aria-hidden="true"
             />
           </Button>
+          {canContinueProgrammer && (
+            <Button
+              variant="outline"
+              type="button"
+              disabled={isContinuing}
+              onClick={() => void handleProgrammerContinue()}
+              className="mr-2 h-8 shrink-0 px-3"
+            >
+              {isContinuing ? 'Continuing…' : 'Continue'}
+            </Button>
+          )}
+          {continueError && <span className="mr-2 text-xs text-text-warning">{continueError}</span>}
         </div>
       </div>
       <div
