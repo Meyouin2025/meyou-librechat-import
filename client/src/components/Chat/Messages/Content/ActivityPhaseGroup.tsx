@@ -66,6 +66,31 @@ export default function ActivityPhaseGroup({
 }) {
   const label = getActivityLabelText(labelPart);
   const hasFailure = labelPart.status === 'failed' || labelPart.status === 'partial';
+  const canContinueProgrammer = /paused\s*-?\s*needs attention|needs attention/i.test(label);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const [continueError, setContinueError] = useState('');
+
+  const handleProgrammerContinue = useCallback(async () => {
+    if (isContinuing) {
+      return;
+    }
+    setIsContinuing(true);
+    setContinueError('');
+    try {
+      const response = await fetch('/api/meyou/programmer/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'continue' }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || `Continue failed (HTTP ${response.status})`);
+      }
+    } catch (error) {
+      setContinueError(error instanceof Error ? error.message : 'Continue failed');
+      setIsContinuing(false);
+    }
+  }, [isContinuing]);
   const isProgrammerWorking =
     labelPart.status === 'in_progress' &&
     /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(label);
@@ -185,6 +210,18 @@ export default function ActivityPhaseGroup({
       >
         {label}
       </span>
+      {canContinueProgrammer && (
+        <Button
+          variant="outline"
+          type="button"
+          disabled={isContinuing}
+          onClick={handleProgrammerContinue}
+          className="ml-2 h-8 shrink-0 px-3"
+        >
+          {isContinuing ? 'Continuing…' : 'Continue'}
+        </Button>
+      )}
+      {continueError && <span className="ml-2 text-xs text-text-warning">{continueError}</span>
     </div>
   ) : (
     <div
@@ -219,6 +256,21 @@ export default function ActivityPhaseGroup({
             >
               {label}
             </span>
+            {canContinueProgrammer && (
+              <Button
+                variant="outline"
+                type="button"
+                disabled={isContinuing}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleProgrammerContinue();
+                }}
+                className="ml-2 h-8 shrink-0 px-3"
+              >
+                {isContinuing ? 'Continuing…' : 'Continue'}
+              </Button>
+            )}
+            {continueError && <span className="ml-2 text-xs text-text-warning">{continueError}</span>}
             <ChevronDown
               className={cn(
                 'size-4 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
