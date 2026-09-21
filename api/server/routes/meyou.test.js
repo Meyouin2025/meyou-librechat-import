@@ -71,7 +71,7 @@ describe('Meyou programmer callback route', () => {
       .set('Authorization', `Bearer ${token('stream-1', 123)}`)
       .send({
         type: 'activity',
-        event: { step: 3, state: 'working', label: 'Running tests', detail: 'npm test' },
+        event: { step: 3, state: 'working', phase: 'verify', can_continue: false, can_approve: false, label: 'Running tests', detail: 'npm test' },
       })
       .expect(200);
 
@@ -82,6 +82,19 @@ describe('Meyou programmer callback route', () => {
         data: expect.objectContaining({
           id: 'meyou-programmer-3',
           status: 'in_progress',
+          stepDetails: expect.objectContaining({
+            tool_calls: [
+              expect.objectContaining({
+                meyou: expect.objectContaining({
+                  programmer: true,
+                  phase: 'verify',
+                  state: 'working',
+                  can_continue: false,
+                  can_approve: false,
+                }),
+              }),
+            ],
+          }),
         }),
       }),
       { durable: true, expectedCreatedAt: 123 },
