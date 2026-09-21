@@ -7,7 +7,9 @@ const router = Router();
 
 function getCallbackSecret() {
   return (
-    process.env.MEYOU_PROGRAMMER_CALLBACK_SECRET || process.env.MEYOU_BRIDGE_SECRET || ''
+    process.env.MEYOU_PROGRAMMER_CALLBACK_SECRET ||
+    process.env.MEYOU_BRIDGE_SECRET ||
+    ''
   ).trim();
 }
 
@@ -90,7 +92,9 @@ function completionEvent(payload) {
 }
 
 router.post('/programmer/control', async (req, res) => {
-  const action = String(req.body?.action || '').trim().toLowerCase();
+  const action = String(req.body?.action || '')
+    .trim()
+    .toLowerCase();
   if (!['continue', 'approve'].includes(action)) {
     return res.status(400).json({ error: 'action must be continue or approve' });
   }
