@@ -32,10 +32,39 @@ function token(streamId, generationCreatedAt, secret = 'callback-secret') {
 }
 
 describe('Meyou programmer callback route', () => {
+  const originalFetch = global.fetch;
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.MEYOU_PROGRAMMER_CALLBACK_SECRET = 'callback-secret';
     delete process.env.MEYOU_BRIDGE_SECRET;
+  });
+
+  test('proxies Continue to the Programmer control endpoint', async () => {
+    process.env.MEYOU_BRIDGE_SECRET = 'bridge-secret';
+    global.fetch = jest.fn().mockResolvedValue({
+      status: 200,
+      json: jest.fn().mockResolvedValue({ ok: true, action: 'continue' }),
+    });
+
+    await request(app)
+      .post('/meyou/programmer/control')
+      .send({ action: 'continue' })
+      .expect(200, { ok: true, action: 'continue' });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://meyou-mc-backend.meyoustudio0.workers.dev/api/programmer/control',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer bridge-secret',
+        }),
+        body: JSON.stringify({ action: 'continue' }),
+      }),
+    );
   });
 
   test('rejects invalid bearer tokens without emitting', async () => {
