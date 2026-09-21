@@ -91,6 +91,36 @@ function completionEvent(payload) {
   });
 }
 
+router.post('/programmer/control', async (req, res) => {
+  const action = String(req.body?.action || '').trim().toLowerCase();
+  if (!['continue', 'approve'].includes(action)) {
+    return res.status(400).json({ error: 'action must be continue or approve' });
+  }
+
+  const secret = (process.env.MEYOU_BRIDGE_SECRET || '').trim();
+  if (!secret) {
+    return res.status(503).json({ error: 'Meyou bridge is not configured' });
+  }
+
+  const userId = String(req.user?.id || req.user?._id || '').trim();
+  try {
+    const response = await fetch('https://meyou-mc-backend.meyoustudio0.workers.dev/api/programmer/control', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${secret}`,
+        ...(userId ? { 'X-User-ID': userId } : {}),
+      },
+      body: JSON.stringify({ action }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    return res.status(response.status).json(payload);
+  } catch (error) {
+    logger.warn('[MeyouProgrammerControl] Failed to resume Programmer', error);
+    return res.status(502).json({ error: 'Unable to reach Meyou Programmer' });
+  }
+});
+
 router.post('/programmer/callback/:streamId/:generationCreatedAt', async (req, res) => {
   const { streamId } = req.params;
   const generationCreatedAt = Number(req.params.generationCreatedAt);
