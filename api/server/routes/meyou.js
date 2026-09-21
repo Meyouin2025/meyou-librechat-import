@@ -35,6 +35,9 @@ function activityEvent(payload) {
   const step = Number.isSafeInteger(event.step) && event.step >= 0 ? event.step : Date.now();
   const label = String(event.label || 'Meyou Programmer is working').slice(0, 160);
   const detail = String(event.detail || '').slice(0, 300);
+  const phase = String(event.phase || '').slice(0, 40);
+  const canContinue = event.can_continue === true;
+  const canApprove = event.can_approve === true;
   let status = 'in_progress';
   if (event.state === 'error') {
     status = 'failed';
@@ -58,6 +61,13 @@ function activityEvent(payload) {
             type: 'function',
             name: label,
             args: detail,
+            meyou: {
+              programmer: true,
+              phase,
+              state: String(event.state || 'working'),
+              can_continue: canContinue,
+              can_approve: canApprove,
+            },
           },
         ],
       },
