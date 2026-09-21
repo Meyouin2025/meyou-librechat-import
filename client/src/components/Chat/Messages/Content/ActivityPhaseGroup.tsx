@@ -1,6 +1,6 @@
 import { useId, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@librechat/client';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, LoaderCircle } from 'lucide-react';
 import { ContentTypes } from 'librechat-data-provider';
 import type { TMessageContentParts } from 'librechat-data-provider';
 import type { CSSProperties, ReactNode } from 'react';
@@ -66,6 +66,9 @@ export default function ActivityPhaseGroup({
 }) {
   const label = getActivityLabelText(labelPart);
   const hasFailure = labelPart.status === 'failed' || labelPart.status === 'partial';
+  const isProgrammerWorking =
+    labelPart.status === 'in_progress' &&
+    /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(label);
   const smoothStreaming = useSmoothStreaming();
   /** Capture the marker's arrival state. The parent renderer records the new
    *  marker after this commit; a later sibling update must not cancel the
@@ -169,6 +172,9 @@ export default function ActivityPhaseGroup({
         shouldAnimateEntrance && `animate-in fade-in-0 motion-reduce:animate-none ${FOLD_EASING}`,
       )}
     >
+      {isProgrammerWorking && (
+        <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+      )}
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-left text-sm font-medium',
@@ -201,6 +207,9 @@ export default function ActivityPhaseGroup({
             aria-label={label}
             title={label}
           >
+            {isProgrammerWorking && (
+              <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+            )}
             <span
               className={cn(
                 'min-w-0 flex-1 truncate text-left text-sm font-medium',
