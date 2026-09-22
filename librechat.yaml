@@ -20,7 +20,7 @@ interface:
     - 'mcp'
 
 modelSpecs:
-  enforce: true
+  enforce: false
   prioritize: true
   list:
     - name: 'meyou-main'
