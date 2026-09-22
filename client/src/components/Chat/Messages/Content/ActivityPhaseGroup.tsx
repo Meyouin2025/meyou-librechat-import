@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '@librechat/client';
-import { ChevronDown, LoaderCircle } from 'lucide-react';
 import { ContentTypes } from 'librechat-data-provider';
+import { ChevronDown, LoaderCircle } from 'lucide-react';
 import type { TMessageContentParts } from 'librechat-data-provider';
 import type { CSSProperties, ReactNode } from 'react';
 import {
@@ -87,7 +87,9 @@ export default function ActivityPhaseGroup({
   }, [isContinuing]);
   const isProgrammerWorking =
     labelPart.status === undefined &&
-    /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(label);
+    /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(
+      label,
+    );
   const smoothStreaming = useSmoothStreaming();
   const [shouldAnimateEntrance] = useState(smoothStreaming && animateEntrance && label.length > 0);
   const foldsIn = shouldAnimateEntrance && hasContent;
