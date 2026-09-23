@@ -258,6 +258,10 @@ export default function useResumeOnLoad(
   const resumableEnabled = !isAssistantsEndpoint(actualEndpoint);
   // Track conversations we've already processed (either resumed or skipped)
   const processedConvoRef = useRef<string | null>(null);
+  // A stream/status request can briefly fail or report jobless while auth refreshes
+  // or the SSE transport reconnects. Do not turn that transient gap into a terminal
+  // local state; require a second inactive confirmation before clearing a live submission.
+  const inactiveConfirmationRef = useRef<{ conversationId: string; count: number } | null>(null);
   /** `generationHandoff` lives in the React Query snapshot until a later
    * status refetch. Remember the exact epoch already consumed so clearing the
    * replacement submission on FINAL cannot re-install that stale snapshot and
@@ -468,12 +472,9 @@ export default function useResumeOnLoad(
     if (isError) {
       if (hasActiveSubmissionForThisConvo) {
         console.log(
-          '[ResumeOnLoad] Clearing active submission because stream status could not confirm it',
+          '[ResumeOnLoad] Preserving active submission through transient stream status error',
           { currentConvoId: conversationId },
         );
-        clearLocalActiveSubmission(conversationId, currentSubmission);
-        restoreSteerChips(conversationId, undefined);
-        processedConvoRef.current = conversationId;
       }
       return;
     }
@@ -547,8 +548,19 @@ export default function useResumeOnLoad(
     if (!streamStatus.active || !streamStatus.streamId) {
       console.log('[ResumeOnLoad] No active job to resume for:', conversationId);
       if (hasActiveSubmissionForThisConvo) {
+        const prior = inactiveConfirmationRef.current;
+        const count = prior?.conversationId === conversationId ? prior.count + 1 : 1;
+        inactiveConfirmationRef.current = { conversationId, count };
+        if (count < 2) {
+          console.log('[ResumeOnLoad] Preserving active submission until jobless status is confirmed', {
+            currentConvoId: conversationId,
+            count,
+          });
+          return;
+        }
         clearLocalActiveSubmission(conversationId, currentSubmission);
       }
+      inactiveConfirmationRef.current = null;
       // A terminal drain may have parked acknowledged steers no subscriber
       // received (tab closed / reload racing the final event) — the status
       // claim returns them exactly once; restore as queued follow-up chips.
@@ -573,6 +585,7 @@ export default function useResumeOnLoad(
       return;
     }
 
+    inactiveConfirmationRef.current = null;
     processedConvoRef.current = conversationId;
     if (handoffGenerationKey != null) {
       consumedHandoffGenerationRef.current = handoffGenerationKey;
