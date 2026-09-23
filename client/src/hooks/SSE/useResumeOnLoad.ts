@@ -137,22 +137,16 @@ function buildSubmissionFromResumeState(
   const responseMessageId =
     resumeState.responseMessageId ?? `${userMessageData?.messageId ?? 'resume'}_`;
 
-  // Try to find existing user message in the messages array (from database)
   const existingUserMessage = messages.find(
     (m) => m.isCreatedByUser && m.messageId === userMessageData?.messageId,
   );
 
-  // Try to find existing response message in the messages array (from database).
-  // Regeneration can expose the in-flight placeholder id with trailing underscores
-  // while the persisted sibling uses the unpadded id. Prefer both exact identities
-  // before falling back to the shared parent, where several branch siblings can match.
   const unpaddedResponseMessageId = responseMessageId.replace(/_+$/, '');
   const existingResponseMessage =
     messages.find((m) => !m.isCreatedByUser && m.messageId === responseMessageId) ??
     messages.find((m) => !m.isCreatedByUser && m.messageId === unpaddedResponseMessageId) ??
     messages.find((m) => !m.isCreatedByUser && m.parentMessageId === userMessageData?.messageId);
 
-  // Create or use existing user message
   const userMessage: TMessage =
     existingUserMessage ??
     (userMessageData
@@ -172,14 +166,11 @@ function buildSubmissionFromResumeState(
           isCreatedByUser: true,
         } as TMessage)));
 
-  // ALWAYS use aggregatedContent from resumeState - it has the latest content from the running job.
-  // DB content may be stale (saved at disconnect, but generation continued).
   let initialResponse: TMessage = {
     messageId: existingResponseMessage?.messageId ?? responseMessageId,
     parentMessageId: existingResponseMessage?.parentMessageId ?? userMessage.messageId,
     conversationId,
     text: '',
-    // aggregatedContent is authoritative - it reflects actual job state
     content: (resumeState.aggregatedContent as TMessage['content']) ?? [],
     isCreatedByUser: false,
     role: 'assistant',
@@ -188,8 +179,6 @@ function buildSubmissionFromResumeState(
     iconURL: preferDefinedString(existingResponseMessage?.iconURL, resumeState.iconURL),
   } as TMessage;
 
-  // Re-paused turn: seed the approval / ask-user controls straight onto the
-  // placeholder so they render on load without waiting for the SSE sync replay.
   if (resumeState.pendingAction) {
     initialResponse = applyPendingAction(initialResponse, resumeState.pendingAction);
   }
@@ -200,11 +189,6 @@ function buildSubmissionFromResumeState(
     endpoint: null,
   } as TConversation;
 
-  // On reload, `messages` is the full DB array, which already holds the paused user
-  // row and the partial (unfinished) assistant row under the same ids that
-  // `userMessage` / `initialResponse` (and the resume final event's request/response
-  // messages) re-supply. Strip them so createdHandler/finalHandler — which build
-  // `[...messages, requestMessage, responseMessage]` — don't append a duplicate pair.
   const pausedResponseIdUnpadded = initialResponse.messageId.replace(/_+$/, '');
   const dedupedMessages = messages.filter(
     (m) =>
@@ -221,7 +205,6 @@ function buildSubmissionFromResumeState(
     isRegenerate: false,
     isTemporary: false,
     endpointOption: {},
-    // Signal to useResumableSSE to subscribe to existing stream instead of starting new
     resumeStreamId: streamId,
     ...(generationCreatedAt != null && { resumeGenerationCreatedAt: generationCreatedAt }),
     resumeGenerationProtocolVersion: generationProtocolVersion,
@@ -232,17 +215,6 @@ function buildSubmissionFromResumeState(
   };
 }
 
-/**
- * Hook to resume streaming if navigating to a conversation with active generation.
- * Checks stream status via React Query and sets submission if active job found.
- *
- * This hook:
- * 1. Uses useStreamStatus to check for active jobs on navigation
- * 2. If active job found, builds a submission with streamId and sets it
- * 3. useResumableSSE picks up the submission and subscribes to the stream
- *
- * @param messagesLoaded - Whether the messages query has finished loading (prevents race condition)
- */
 export default function useResumeOnLoad(
   conversationId: string | undefined,
   getMessages: () => TMessage[] | undefined,
@@ -256,17 +228,8 @@ export default function useResumeOnLoad(
   const endpointType = currentConversation?.endpointType;
   const actualEndpoint = endpointType ?? endpoint;
   const resumableEnabled = !isAssistantsEndpoint(actualEndpoint);
-  // Track conversations we've already processed (either resumed or skipped)
   const processedConvoRef = useRef<string | null>(null);
-  // A stream/status request can briefly fail or report jobless while auth refreshes
-  // or the SSE transport reconnects. Do not turn that transient gap into a terminal
-  // local state; require a second inactive confirmation before clearing a live submission.
   const inactiveConfirmationRef = useRef<{ conversationId: string; count: number } | null>(null);
-  /** `generationHandoff` lives in the React Query snapshot until a later
-   * status refetch. Remember the exact epoch already consumed so clearing the
-   * replacement submission on FINAL cannot re-install that stale snapshot and
-   * enter a resume→404→resume loop. A genuinely newer handoff has a different
-   * createdAt key and remains eligible. */
   const consumedHandoffGenerationRef = useRef<string | null>(null);
   const restoreResumeBranch = useRecoilCallback(
     ({ set }) =>
@@ -285,8 +248,6 @@ export default function useResumeOnLoad(
     [],
   );
 
-  /** Restore pending-steer chips for steers the server still has queued
-   *  (injected ones already live inside the resumed aggregatedContent). */
   const convertSteersToQueued = useSteerConvert();
 
   const restoreSteerChips = useRecoilCallback(
@@ -305,11 +266,6 @@ export default function useResumeOnLoad(
             appendAppliedSteerIds(prev, acceptedClientIds),
           );
         }
-        // Always reconcile against the server's still-queued list (mirrors the
-        // sync-path re-seed in useResumableSSE): a steer applied while this
-        // client was away is absent here (its inline part rides
-        // aggregatedContent instead), so an EMPTY list must clear stale local
-        // pending chips, not leave them stranded beside the applied part.
         set(store.pendingSteersByConvoId(activeConversationId), (prev) => {
           const chipById = new Map(prev.map((chip) => [chip.steerId, chip]));
           const claimedIds = new Set(
@@ -405,7 +361,6 @@ export default function useResumeOnLoad(
     [runIndex],
   );
 
-  // Check for active stream when conversation changes
   const submissionConvoId = currentSubmission?.conversation?.conversationId;
   const loadedMessages = messagesLoaded ? getMessages() : undefined;
   const hasExplicitSubmissionMatch = !!conversationId && submissionConvoId === conversationId;
@@ -419,11 +374,9 @@ export default function useResumeOnLoad(
 
   const shouldCheck =
     resumableEnabled &&
-    messagesLoaded && // Wait for messages to load before checking
+    messagesLoaded &&
     !!conversationId &&
     conversationId !== Constants.NEW_CONVO &&
-    // A local active submission is not authoritative; re-check so jobless/error
-    // backend status can clear stale "working" UI after reload/auth failures.
     (processedConvoRef.current !== conversationId || hasActiveSubmissionForThisConvo);
 
   const {
@@ -452,13 +405,11 @@ export default function useResumeOnLoad(
       return;
     }
 
-    // Wait for messages to load to avoid race condition where sync overwrites then DB overwrites
     if (!messagesLoaded) {
       console.log('[ResumeOnLoad] Waiting for messages to load');
       return;
     }
 
-    // If there's a stale submission for a different conversation, log it but continue
     if (hasStaleSubmissionForDifferentConvo) {
       console.log(
         '[ResumeOnLoad] Found stale submission for different conversation, will check for resume',
@@ -479,17 +430,11 @@ export default function useResumeOnLoad(
       return;
     }
 
-    // Wait for stream status query to complete (including background refetches
-    // that may replace a stale cached result with fresh data)
     if (!isSuccess || !streamStatus || isFetching) {
       console.log('[ResumeOnLoad] Waiting for stream status query');
       return;
     }
 
-    /** useResumableSSE detected that this conversation-scoped stream now
-     * belongs to a newer generation. It cleared the stale submission and
-     * cached the replacement snapshot; allow the same conversation to be
-     * processed again so this epoch becomes the active resume submission. */
     const generationProtocolVersion = getGenerationProtocolVersion(streamStatus);
     const isGenerationProtocolV2 = supportsGenerationProtocolV2(streamStatus);
     const handoffGenerationKey =
@@ -508,9 +453,6 @@ export default function useResumeOnLoad(
       processedConvoRef.current = null;
     }
 
-    // Don't replace a current same-conversation submission when the backend
-    // confirms that exact generation is still active. This is the disconnected
-    // stream case: keep the local job and let the existing SSE reconnect/resume.
     if (
       hasActiveSubmissionForThisConvo &&
       activeStreamStatusMatchesSubmission(streamStatus, currentSubmission, conversationId)
@@ -539,7 +481,6 @@ export default function useResumeOnLoad(
       return;
     }
 
-    // Don't process the same conversation twice
     if (processedConvoRef.current === conversationId) {
       console.log('[ResumeOnLoad] Skipping - already processed this conversation');
       return;
@@ -552,21 +493,18 @@ export default function useResumeOnLoad(
         const count = prior?.conversationId === conversationId ? prior.count + 1 : 1;
         inactiveConfirmationRef.current = { conversationId, count };
         if (count < 2) {
-          console.log('[ResumeOnLoad] Preserving active submission until jobless status is confirmed', {
-            currentConvoId: conversationId,
-            count,
-          });
+          console.log(
+            '[ResumeOnLoad] Preserving active submission until jobless status is confirmed',
+            {
+              currentConvoId: conversationId,
+              count,
+            },
+          );
           return;
         }
         clearLocalActiveSubmission(conversationId, currentSubmission);
       }
       inactiveConfirmationRef.current = null;
-      // A terminal drain may have parked acknowledged steers no subscriber
-      // received (tab closed / reload racing the final event) — the status
-      // claim returns them exactly once; restore as queued follow-up chips.
-      // An expired pendingAction can report inactive BEFORE the sweeper parks
-      // the steer queue: those steers still ride resumeState.pendingSteers,
-      // so convert both lists (id-deduped) before the empty seed clears chips.
       const leftoverSteers = dedupeSteersById(
         streamStatus.unrecoveredSteers,
         streamStatus.resumeState?.pendingSteers,
@@ -576,9 +514,6 @@ export default function useResumeOnLoad(
           generationProtocolVersion,
         });
       }
-      // The run is terminal, so any remaining local pending chip is stale:
-      // its steer either applied (inline part in the saved message) or rode
-      // `unrecoveredSteers` above — same empty-list reconcile as the resume path.
       settleAppliedSteerParts(conversationId, getMessages());
       restoreSteerChips(conversationId, undefined);
       processedConvoRef.current = conversationId;
@@ -606,7 +541,6 @@ export default function useResumeOnLoad(
 
     const messages = getMessages() || [];
 
-    // Build submission from resume state if available
     if (streamStatus.resumeState) {
       restoreResumeBranch(streamStatus.resumeState, messages, conversationId);
       restoreSteerChips(
@@ -615,9 +549,6 @@ export default function useResumeOnLoad(
         streamStatus.createdAt,
         generationProtocolVersion,
       );
-      // Restore the server's pending snapshot before settling inline steer
-      // parts. A steer present in both views was applied during the snapshot
-      // boundary and must finish absent, never resurrected as a chip.
       settleAppliedSteerParts(conversationId, [
         ...messages,
         ...(streamStatus.resumeState.aggregatedContent ?? []),
@@ -632,7 +563,6 @@ export default function useResumeOnLoad(
       );
       setSubmission(submission);
     } else {
-      // Minimal submission without resume state
       const lastUserMessage = [...messages].reverse().find((m) => m.isCreatedByUser);
       const submission = {
         messages,
@@ -644,11 +574,14 @@ export default function useResumeOnLoad(
           text: '',
           content: streamStatus.aggregatedContent ?? [{ type: 'text', text: '' }],
         } as TMessage,
-        conversation: { conversationId, title: 'Resumed Chat' } as TConversation,
+        conversation: {
+          conversationId,
+          title: 'Resumed Chat',
+          endpoint: null,
+        } as TConversation,
         isRegenerate: false,
         isTemporary: false,
         endpointOption: {},
-        // Signal to useResumableSSE to subscribe to existing stream instead of starting new
         resumeStreamId: streamStatus.streamId,
         ...(streamStatus.createdAt != null && {
           resumeGenerationCreatedAt: streamStatus.createdAt,
@@ -662,37 +595,24 @@ export default function useResumeOnLoad(
       setSubmission(submission);
     }
   }, [
-    conversationId,
     resumableEnabled,
+    conversationId,
     messagesLoaded,
-    hasActiveSubmissionForThisConvo,
-    submissionConvoId,
-    hasStaleSubmissionForDifferentConvo,
     currentSubmission,
+    submissionConvoId,
+    hasActiveSubmissionForThisConvo,
+    hasStaleSubmissionForDifferentConvo,
     isSuccess,
     isFetching,
     isError,
     streamStatus,
     getMessages,
     setSubmission,
-    clearLocalActiveSubmission,
     restoreResumeBranch,
     restoreSteerChips,
     settleAppliedSteerParts,
     convertSteersToQueued,
     setActiveGenerationCreatedAt,
+    clearLocalActiveSubmission,
   ]);
-
-  // Reset processedConvoRef when conversation changes to allow re-checking
-  useEffect(() => {
-    // Always reset when conversation changes - this allows resuming when navigating back
-    if (conversationId !== processedConvoRef.current) {
-      console.log('[ResumeOnLoad] Resetting processedConvoRef for new conversation:', {
-        old: processedConvoRef.current,
-        new: conversationId,
-      });
-      processedConvoRef.current = null;
-      consumedHandoffGenerationRef.current = null;
-    }
-  }, [conversationId]);
 }
