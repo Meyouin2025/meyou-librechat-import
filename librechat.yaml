@@ -219,6 +219,7 @@ mcpServers:
   meyou-hands:
     type: streamable-http
     url: 'https://meyou-mcp-v2.meyoustudio0.workers.dev/mcp'
+    requiresOAuth: false
     headers:
       Authorization: 'Bearer ${MEYOU_MCP_SECRET}'
       X-User-ID: '{{LIBRECHAT_USER_ID}}'
