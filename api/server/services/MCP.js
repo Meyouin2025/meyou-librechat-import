@@ -907,6 +907,14 @@ async function createMCPTool({
       }
     }
   }
+  if (serverName === 'meyou-hands') {
+    const authorizationHeader =
+      serverConfig?.headers?.Authorization ?? serverConfig?.headers?.authorization;
+    logger.info(
+      `[MCP][meyou-hands][diagnostic] capture source=${serverConfig?.source ?? 'unknown'} authorizationHeaderPresent=${typeof authorizationHeader === 'string' && authorizationHeader.length > 0} bearerPrefixPresent=${typeof authorizationHeader === 'string' && authorizationHeader.startsWith('Bearer ')} unresolvedEnvPlaceholder=${typeof authorizationHeader === 'string' && authorizationHeader.includes('\${')}`,
+    );
+  }
+
   const requestScopedTools = serverConfig ? requiresEphemeralUserConnection(serverConfig) : false;
   const useMissingToolCache = !requestScopedTools;
 
