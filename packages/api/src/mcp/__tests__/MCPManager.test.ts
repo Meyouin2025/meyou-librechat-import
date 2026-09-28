@@ -1287,6 +1287,60 @@ describe('MCPManager', () => {
       }
     });
 
+    it('should resolve YAML env Bearer headers before a tool call', async () => {
+      const envName = 'MEYOU_MCP_TEST_SECRET';
+      const originalEnv = process.env[envName];
+      process.env[envName] = 'resolved-meyou-test-secret';
+
+      try {
+        const serverConfig: t.StreamableHTTPOptions & { source: 'yaml' } = {
+          type: 'streamable-http',
+          url: 'https://api.example.com/mcp',
+          headers: {
+            Authorization: `Bearer ${${envName}}`,
+          },
+          source: 'yaml',
+        };
+
+        const actualProcessMCPEnv = (
+          jest.requireActual('~/utils/env') as typeof import('~/utils/env')
+        ).processMCPEnv;
+        mockProcessMCPEnv.mockImplementation(actualProcessMCPEnv);
+        (graphUtils.preProcessGraphTokens as jest.Mock).mockImplementation(
+          async (options) => options,
+        );
+
+        mockAppConnections({
+          get: jest.fn().mockResolvedValue(mockConnection),
+        });
+        (mockRegistryInstance.getServerConfig as jest.Mock).mockResolvedValue(serverConfig);
+
+        const manager = await MCPManager.createInstance(newMCPServersConfig());
+
+        await manager.callTool({
+          user: mockUser as IUser,
+          serverName,
+          toolName: 'test_tool',
+          provider: 'openai',
+          flowManager: mockFlowManager as unknown as Parameters<
+            typeof manager.callTool
+          >[0]['flowManager'],
+        });
+
+        expect(mockConnection.setRequestHeaders).toHaveBeenCalledWith(
+          expect.objectContaining({
+            Authorization: 'Bearer resolved-meyou-test-secret',
+          }),
+        );
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env[envName] = originalEnv;
+        } else {
+          delete process.env[envName];
+        }
+      }
+    });
+
     it('should work correctly when config has no graph token placeholders', async () => {
       const serverConfig: t.SSEOptions = {
         type: 'sse',
