@@ -204,8 +204,7 @@ endpoints:
       apiKey: '${MEYOU_BRIDGE_SECRET}'
       baseURL: 'https://meyou-mc-backend.meyoustudio0.workers.dev/v1'
       headers:
-        X-User-ID: '{{LIBRECHAT_USER_ID}}'
-      models:
+        models:
         default:
           - 'meyou-v2'
         fetch: false
