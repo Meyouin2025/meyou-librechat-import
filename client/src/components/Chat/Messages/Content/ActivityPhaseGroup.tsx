@@ -1,7 +1,7 @@
-import { useId, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '@librechat/client';
-import { ChevronDown } from 'lucide-react';
 import { ContentTypes } from 'librechat-data-provider';
+import { ChevronDown, LoaderCircle } from 'lucide-react';
 import type { TMessageContentParts } from 'librechat-data-provider';
 import type { CSSProperties, ReactNode } from 'react';
 import {
@@ -17,8 +17,8 @@ import Container from './Container';
 import { cn } from '~/utils';
 
 /** Matches `EXPAND_TRANSITION` so the header, the panel, and the card chrome
- *  all resolve on the same curve — three properties animating on two different
- *  easings is what makes a fold read as two separate movements. */
+ * all resolve on the same curve — three properties animating on two different
+ * easings is what makes a fold read as two separate movements. */
 const FOLD_EASING = 'duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none';
 
 type ActivityPhasePart = Extract<TMessageContentParts, { type: ContentTypes.ACTIVITY_LABEL }> & {
@@ -27,12 +27,6 @@ type ActivityPhasePart = Extract<TMessageContentParts, { type: ContentTypes.ACTI
   activity_end_index?: number;
 };
 
-/**
- * Runs `callback` once the browser has painted the current styles. One frame
- * is not enough: React can flush passive effects before paint, and a start
- * value the compositor never saw produces an instant jump rather than a
- * transition. Returns a canceller for whichever frame is still pending.
- */
 function schedulePostPaint(callback: () => void): () => void {
   let frameId: number | undefined;
   frameId = window.requestAnimationFrame(() => {
@@ -66,18 +60,38 @@ export default function ActivityPhaseGroup({
 }) {
   const label = getActivityLabelText(labelPart);
   const hasFailure = labelPart.status === 'failed' || labelPart.status === 'partial';
+  const canContinueProgrammer = /paused\s*-?\s*needs attention|needs attention/i.test(label);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const [continueError, setContinueError] = useState('');
+
+  const handleProgrammerContinue = useCallback(async () => {
+    if (isContinuing) {
+      return;
+    }
+    setIsContinuing(true);
+    setContinueError('');
+    try {
+      const response = await fetch('/api/meyou/programmer/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'continue' }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || `Continue failed (HTTP ${response.status})`);
+      }
+    } catch (error) {
+      setContinueError(error instanceof Error ? error.message : 'Continue failed');
+      setIsContinuing(false);
+    }
+  }, [isContinuing]);
+  const isProgrammerWorking =
+    labelPart.status === undefined &&
+    /planning|syncing workspace|inspecting files|reading a file|editing a file|running tests|diagnosing|reviewing diff|using tools/i.test(
+      label,
+    );
   const smoothStreaming = useSmoothStreaming();
-  /** Capture the marker's arrival state. The parent renderer records the new
-   *  marker after this commit; a later sibling update must not cancel the
-   *  already-scheduled fold before its first animation frame. */
   const [shouldAnimateEntrance] = useState(smoothStreaming && animateEntrance && label.length > 0);
-  /** A filled phase marker lands on top of activity the reader is already
-   *  looking at. The card therefore mounts in the shape of what was there
-   *  BEFORE it — header at zero height, panel open, chrome transparent — and
-   *  folds into the summary on the next painted frame. Growing the header
-   *  while the panel collapses keeps the block's height strictly decreasing,
-   *  so the content compresses upward instead of being shoved down by a
-   *  header that appeared underneath it and then yanked back up. */
   const foldsIn = shouldAnimateEntrance && hasContent;
   const [isExpanded, setIsExpanded] = useState(foldsIn);
   const [isSettled, setIsSettled] = useState(!foldsIn);
@@ -88,10 +102,6 @@ export default function ActivityPhaseGroup({
   const previousIsExpandedRef = useRef(isExpanded);
   const userOverrideRef = useRef(false);
   const { style: expandStyle, ref: expandRef } = useExpandCollapse(isExpanded);
-  /** A phase label can resolve while an approval card inside it is still
-   *  pending (see ApprovalContext), and ToolApproval owns unsent local
-   *  edit/respond/reason state — so a collapsed phase retains its body until
-   *  every nested approval resolves, exactly like ToolCallGroup. */
   const { shouldRenderBody, mountBody, handleTransitionEnd } = useLazyCollapseBody(
     isExpanded,
     hasPendingApproval,
@@ -140,8 +150,6 @@ export default function ActivityPhaseGroup({
     setIsExpanded((expanded) => !expanded);
   }, [mountBody]);
 
-  /** Only the folding entrance drives the header off its natural height.
-   *  History and reduced-motion render the plain, unstyled row. */
   const headerStyle = useMemo<CSSProperties | undefined>(() => {
     if (!foldsIn) {
       return undefined;
@@ -169,6 +177,9 @@ export default function ActivityPhaseGroup({
         shouldAnimateEntrance && `animate-in fade-in-0 motion-reduce:animate-none ${FOLD_EASING}`,
       )}
     >
+      {isProgrammerWorking && (
+        <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+      )}
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-left text-sm font-medium',
@@ -179,6 +190,18 @@ export default function ActivityPhaseGroup({
       >
         {label}
       </span>
+      {canContinueProgrammer && (
+        <Button
+          variant="outline"
+          type="button"
+          disabled={isContinuing}
+          onClick={() => void handleProgrammerContinue()}
+          className="ml-2 h-8 shrink-0 px-3"
+        >
+          {isContinuing ? 'Continuing…' : 'Continue'}
+        </Button>
+      )}
+      {continueError && <span className="ml-2 text-xs text-text-warning">{continueError}</span>}
     </div>
   ) : (
     <div
@@ -190,17 +213,20 @@ export default function ActivityPhaseGroup({
       ref={rootRef}
     >
       <div style={headerStyle}>
-        <div className="overflow-hidden">
+        <div className="flex items-center overflow-hidden">
           <Button
             variant="ghost"
             type="button"
-            className="flex h-auto min-h-10 w-full items-center justify-start gap-2 rounded-lg bg-transparent px-3 py-2 text-left text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring-primary focus-visible:ring-offset-0"
+            className="flex h-auto min-h-10 min-w-0 flex-1 items-center justify-start gap-2 rounded-lg bg-transparent px-3 py-2 text-left text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring-primary focus-visible:ring-offset-0"
             onClick={handleToggle}
             aria-expanded={isExpanded}
             aria-controls={panelId}
             aria-label={label}
             title={label}
           >
+            {isProgrammerWorking && (
+              <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+            )}
             <span
               className={cn(
                 'min-w-0 flex-1 truncate text-left text-sm font-medium',
@@ -218,6 +244,18 @@ export default function ActivityPhaseGroup({
               aria-hidden="true"
             />
           </Button>
+          {canContinueProgrammer && (
+            <Button
+              variant="outline"
+              type="button"
+              disabled={isContinuing}
+              onClick={() => void handleProgrammerContinue()}
+              className="mr-2 h-8 shrink-0 px-3"
+            >
+              {isContinuing ? 'Continuing…' : 'Continue'}
+            </Button>
+          )}
+          {continueError && <span className="mr-2 text-xs text-text-warning">{continueError}</span>}
         </div>
       </div>
       <div
@@ -229,10 +267,6 @@ export default function ActivityPhaseGroup({
       >
         {shouldRenderBody && (
           <div className="overflow-hidden" ref={expandRef}>
-            {/** Padding and the divider ride the same curve as the fold: the
-             *   children occupy the exact position they held before the marker
-             *   arrived and settle into the card as it materializes, instead of
-             *   stepping sideways by the card's inset on the first frame. */}
             <div
               className={cn(
                 'border-t transition-[border-color,padding]',
