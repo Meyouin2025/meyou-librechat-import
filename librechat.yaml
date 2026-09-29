@@ -220,6 +220,5 @@ mcpServers:
     requiresOAuth: false
     headers:
       Authorization: 'Bearer ${MEYOU_MCP_SECRET}'
-      X-User-ID: '{{LIBRECHAT_USER_ID}}'
     timeout: 60000
     serverInstructions: true
