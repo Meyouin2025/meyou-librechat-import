@@ -23,6 +23,15 @@ modelSpecs:
   enforce: true
   prioritize: true
   list:
+    - name: 'qwen-sp'
+      label: 'Qwen SP 30B'
+      description: 'Local Qwen 3 Coder 30B running on Shadow PC through Ollama.'
+      showOnLanding: true
+      preset:
+        endpoint: 'Qwen SP'
+        model: 'qwen3-coder:30b'
+        modelLabel: 'Qwen SP 30B'
+
     - name: 'meyou-main'
       label: 'Meyou'
       description: 'Your main Meyou Studios partner for conversation, planning, memory, routing, and tools.'
@@ -214,6 +223,18 @@ endpoints:
       titleConvo: true
       titleModel: 'meyou-v2'
       modelDisplayLabel: 'Meyou'
+    - name: 'Qwen SP'
+      apiKey: 'ollama'
+      baseURL: 'https://qwen.meyoustudios.com/v1'
+      headers:
+        CF-Access-Client-Id: '${QWEN_CF_ACCESS_CLIENT_ID}'
+        CF-Access-Client-Secret: '${QWEN_CF_ACCESS_CLIENT_SECRET}'
+      models:
+        default:
+          - 'qwen3-coder:30b'
+        fetch: false
+      titleConvo: false
+      modelDisplayLabel: 'Qwen SP'
 
 mcpServers:
   meyou-hands:
