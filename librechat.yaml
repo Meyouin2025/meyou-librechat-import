@@ -94,6 +94,7 @@ modelSpecs:
       conversation_starters:
         - 'Plan a classroom website for my students and families.'
         - 'Help me organize teacher resources and announcements.'
+      
       preset:
         endpoint: 'Meyou V2'
         model: 'meyou-v2'
@@ -246,3 +247,13 @@ mcpServers:
       X-User-ID: '{{LIBRECHAT_USER_ID}}'
     timeout: 60000
     serverInstructions: true
+
+  meyou-qwen-code:
+    type: streamable-http
+    url: 'https://qwen-code.meyoustudios.com/mcp'
+    requiresOAuth: false
+    headers:
+      CF-Access-Client-Id: '${QWEN_CF_ACCESS_CLIENT_ID}'
+      CF-Access-Client-Secret: '${QWEN_CF_ACCESS_CLIENT_SECRET}'
+    timeout: 120000
+    serverInstructions: false
